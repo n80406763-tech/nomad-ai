@@ -1,13 +1,21 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @ObservedObject private var appState = AppState.shared
+
     var body: some View {
-        MapScreenView()
-            .ignoresSafeArea()
-            .onAppear {
-                UITabBar.appearance().isHidden = true
-                UITabBar.appearance().backgroundImage = UIImage()
-                UITabBar.appearance().shadowImage = UIImage()
+        Group {
+            if appState.shouldShowPlanner {
+                TripPlannerView()
+            } else {
+                MapScreenView()
+                    .ignoresSafeArea()
             }
+        }
+        .onAppear {
+            UITabBar.appearance().isHidden = true
+            UITabBar.appearance().backgroundImage = UIImage()
+            UITabBar.appearance().shadowImage = UIImage()
+        }
     }
 }

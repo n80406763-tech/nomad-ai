@@ -7,10 +7,17 @@ final class AppState: ObservableObject {
 
     @Published var selectedTab = 0
     @Published var recenterToken = UUID()
+    @Published var shouldShowPlanner = true
 
     /// Переключиться на карту и сразу отцентрировать на текущей позиции (как в реальном навигаторе)
     func startTrip() {
-        selectedTab = 1 // вкладка "Карта"
+        shouldShowPlanner = false
+        selectedTab = 1
         recenterToken = UUID()
+    }
+
+    func resetToPlanner() {
+        shouldShowPlanner = true
+        selectedTab = 0
     }
 }
