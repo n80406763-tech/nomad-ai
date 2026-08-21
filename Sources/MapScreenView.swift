@@ -1,5 +1,5 @@
 import SwiftUI
-import MapboxMaps
+import MapLibre
 import CoreLocation
 
 /// Главный экран карты (вкладка 1)

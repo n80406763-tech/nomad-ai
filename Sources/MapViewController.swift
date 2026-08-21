@@ -1,112 +1,79 @@
 import UIKit
-import MapboxMaps
+import MapLibre
 import CoreLocation
 
-/// Полный контроллер карты на MapLibre
-class MapViewController: UIViewController {
+/// Полный контроллер карты на MapLibre (MLNMapView API)
+class MapViewController: UIViewController, MLNMapViewDelegate {
 
-    private var mapView: MapView!   // MapLibre MapView
-    private var userLocationAnnotation: PointAnnotationManager?
-    private var routeLayerID = "active-route-layer"
-    private var routeSourceID = "active-route-source"
-    private var isRouteDrawn = false
+    private var mapView: MLNMapView!
+    private var routePolyline: MLNPolyline?
+    private var userAnnotation: MLNPointAnnotation?
     private var currentPolyline: [CLLocationCoordinate2D] = []
 
-    // Offline tile source (скачанный .mbtiles)
-    private var useOfflineTiles: Bool {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return FileManager.default.fileExists(atPath: docs.appendingPathComponent("map.mbtiles").path)
-    }
-
+    // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
         setupMap()
+        setupHUD()
     }
 
     private func setupMap() {
-        // Выбираем источник тайлов: офлайн или онлайн (OpenFreeMap)
-        var styleURI: StyleURI
-        if useOfflineTiles {
-            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let tilesURL = docs.appendingPathComponent("map.mbtiles")
-            // Используем локальный файл стиля с mbtiles
-            let styleURL = Bundle.main.url(forResource: "offline_style", withExtension: "json")
-                ?? URL(string: "https://tiles.openfreemap.org/styles/liberty")!
-            styleURI = StyleURI(url: styleURL) ?? .streets
-        } else {
-            // Бесплатные онлайн тайлы OpenFreeMap (без API ключа)
-            styleURI = StyleURI(url: URL(string: "https://tiles.openfreemap.org/styles/liberty")!) ?? .streets
-        }
-
-        let cameraOptions = CameraOptions(
-            center: CLLocationCoordinate2D(latitude: 44.723, longitude: 37.768), // Новороссийск
-            zoom: 10
-        )
-        let initOptions = MapInitOptions(cameraOptions: cameraOptions, styleURI: styleURI)
-
-        mapView = MapView(frame: view.bounds, mapInitOptions: initOptions)
+        // Стиль карты — бесплатный OpenFreeMap (без API ключа)
+        let styleURL = URL(string: "https://tiles.openfreemap.org/styles/liberty")!
+        mapView = MLNMapView(frame: view.bounds, styleURL: styleURL)
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        mapView.ornaments.compassView.isHidden = false
-        mapView.ornaments.scaleBarView.isHidden = false
+        mapView.delegate = self
+        mapView.showsUserLocation = true
+        mapView.userTrackingMode = .followWithHeading
+        mapView.compassView.isHidden = false
+        mapView.logoView.isHidden = true
 
-        // Следовать за пользователем
-        mapView.location.options.puckType = .puck2D(Puck2DConfiguration.makeDefault(showBearing: true))
-
+        // Начальная точка — Новороссийск
+        mapView.setCenter(
+            CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680),
+            zoomLevel: 10,
+            animated: false
+        )
         view.addSubview(mapView)
-        setupOverlayUI()
     }
 
-    // MARK: - Overlay HUD
+    // MARK: - HUD (Спидометр)
     private var speedLabel: UILabel!
     private var distanceLabel: UILabel!
-    private var offlineIndicator: UILabel!
+    private var modeLabel: UILabel!
 
-    private func setupOverlayUI() {
-        // Карточка спидометра
+    private func setupHUD() {
         let hud = UIView()
-        hud.backgroundColor = UIColor(white: 0.1, alpha: 0.85)
+        hud.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.88)
         hud.layer.cornerRadius = 16
+        hud.layer.borderWidth = 1
+        hud.layer.borderColor = UIColor.cyan.withAlphaComponent(0.3).cgColor
         hud.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hud)
 
-        speedLabel = UILabel()
-        speedLabel.font = .monospacedDigitSystemFont(ofSize: 36, weight: .bold)
-        speedLabel.textColor = .cyan
+        speedLabel = makeLabel(size: 36, weight: .bold, color: .cyan)
         speedLabel.text = "0"
-        speedLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let kmhLabel = UILabel()
-        kmhLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        kmhLabel.textColor = .gray
+        let kmhLabel = makeLabel(size: 11, weight: .medium, color: .gray)
         kmhLabel.text = "КМ/Ч"
-        kmhLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        distanceLabel = UILabel()
-        distanceLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        distanceLabel.textColor = .white
+        distanceLabel = makeLabel(size: 12, weight: .semibold, color: .white)
         distanceLabel.text = ""
         distanceLabel.textAlignment = .center
-        distanceLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        offlineIndicator = UILabel()
-        offlineIndicator.font = .systemFont(ofSize: 11, weight: .bold)
-        offlineIndicator.textColor = useOfflineTiles ? .green : .orange
-        offlineIndicator.text = useOfflineTiles ? "● ОФЛАЙН" : "● ОНЛАЙН"
-        offlineIndicator.translatesAutoresizingMaskIntoConstraints = false
+        modeLabel = makeLabel(size: 10, weight: .bold, color: .orange)
+        modeLabel.text = "● GPS"
 
-        hud.addSubview(speedLabel)
-        hud.addSubview(kmhLabel)
-        hud.addSubview(distanceLabel)
-        hud.addSubview(offlineIndicator)
+        [speedLabel, kmhLabel, distanceLabel, modeLabel].forEach { hud.addSubview($0!) }
 
         NSLayoutConstraint.activate([
             hud.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             hud.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            hud.widthAnchor.constraint(equalToConstant: 100),
-            hud.heightAnchor.constraint(equalToConstant: 110),
+            hud.widthAnchor.constraint(equalToConstant: 96),
+            hud.heightAnchor.constraint(equalToConstant: 108),
 
             speedLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            speedLabel.topAnchor.constraint(equalTo: hud.topAnchor, constant: 14),
+            speedLabel.topAnchor.constraint(equalTo: hud.topAnchor, constant: 12),
 
             kmhLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
             kmhLabel.topAnchor.constraint(equalTo: speedLabel.bottomAnchor, constant: 2),
@@ -116,19 +83,32 @@ class MapViewController: UIViewController {
             distanceLabel.leadingAnchor.constraint(equalTo: hud.leadingAnchor, constant: 4),
             distanceLabel.trailingAnchor.constraint(equalTo: hud.trailingAnchor, constant: -4),
 
-            offlineIndicator.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            offlineIndicator.bottomAnchor.constraint(equalTo: hud.bottomAnchor, constant: -8)
+            modeLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
+            modeLabel.bottomAnchor.constraint(equalTo: hud.bottomAnchor, constant: -8)
         ])
 
-        // Обновляем каждую секунду
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.updateHUD()
         }
     }
 
+    private func makeLabel(size: CGFloat, weight: UIFont.Weight, color: UIColor) -> UILabel {
+        let l = UILabel()
+        l.font = .systemFont(ofSize: size, weight: weight)
+        l.textColor = color
+        l.translatesAutoresizingMaskIntoConstraints = false
+        return l
+    }
+
     private func updateHUD() {
         let spd = LocationManager.shared.speed
         speedLabel.text = "\(Int(spd))"
+
+        if let loc = LocationManager.shared.location {
+            let acc = loc.horizontalAccuracy
+            modeLabel.text = acc < 20 ? "● GPS ✓" : "● GPS ~\(Int(acc))м"
+            modeLabel.textColor = acc < 20 ? .green : .orange
+        }
 
         if let loc = LocationManager.shared.location,
            let rem = RouteStore.shared.remainingDistance(from: loc) {
@@ -138,53 +118,37 @@ class MapViewController: UIViewController {
 
     // MARK: - Public API
     func updateUserLocation(_ location: CLLocation) {
-        // MapLibre следит сам через puck, просто центрируем если первый раз
+        // MLNMapView следит сам через showsUserLocation
     }
 
     func drawRoute(_ coordinates: [CLLocationCoordinate2D]) {
-        guard !coordinates.isEmpty else { return }
-        guard coordinates != currentPolyline else { return }
+        guard !coordinates.isEmpty, coordinates.count != currentPolyline.count else { return }
         currentPolyline = coordinates
+        clearRoute()
 
-        mapView.mapboxMap.onNext(event: .mapLoaded) { [weak self] _ in
-            guard let self = self else { return }
-            self.removeRouteLayer()
-            self.addRouteLayer(coordinates: coordinates)
-        }
-
-        // Если карта уже загружена
-        if mapView.mapboxMap.isStyleLoaded {
-            removeRouteLayer()
-            addRouteLayer(coordinates: coordinates)
-        }
+        var coords = coordinates
+        let polyline = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
+        mapView.addAnnotation(polyline)
+        routePolyline = polyline
     }
 
     func clearRoute() {
-        removeRouteLayer()
-        currentPolyline = []
+        if let old = routePolyline {
+            mapView.removeAnnotation(old)
+            routePolyline = nil
+        }
     }
 
-    private func addRouteLayer(coordinates: [CLLocationCoordinate2D]) {
-        var feature = Feature(geometry: .lineString(LineString(coordinates)))
-        var source = GeoJSONSource()
-        source.data = .feature(feature)
-
-        var layer = LineLayer(id: routeLayerID)
-        layer.source = routeSourceID
-        layer.lineColor = .constant(StyleColor(.cyan))
-        layer.lineWidth = .constant(5)
-        layer.lineCap = .constant(.round)
-        layer.lineJoin = .constant(.round)
-        layer.lineOpacity = .constant(0.9)
-
-        try? mapView.mapboxMap.style.addSource(source, id: routeSourceID)
-        try? mapView.mapboxMap.style.addLayer(layer)
-        isRouteDrawn = true
+    // MARK: - MLNMapViewDelegate
+    func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
+        return annotation is MLNPolyline ? .cyan : .blue
     }
 
-    private func removeRouteLayer() {
-        try? mapView.mapboxMap.style.removeLayer(withId: routeLayerID)
-        try? mapView.mapboxMap.style.removeSource(withId: routeSourceID)
-        isRouteDrawn = false
+    func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat {
+        return 5.0
+    }
+
+    func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat {
+        return 0.9
     }
 }

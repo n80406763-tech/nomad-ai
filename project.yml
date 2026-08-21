@@ -26,4 +26,4 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - package: MapLibre
-        product: Mapbox
+        product: MapLibre
