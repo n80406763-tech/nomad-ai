@@ -76,14 +76,13 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         DispatchQueue.main.async { self.heading = newHeading }
     }
 
-    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
         DispatchQueue.main.async {
             self.authorizationStatus = status
             if status == .authorizedAlways || status == .authorizedWhenInUse {
-                // Задержка предотвращает краш при вызове во время старта приложения
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                    manager.allowsBackgroundLocationUpdates = true
-                }
+                manager.showsBackgroundLocationIndicator = true // Required for WhenInUse background
+                manager.allowsBackgroundLocationUpdates = true
                 self.startTracking()
             }
         }

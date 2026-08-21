@@ -52,7 +52,7 @@ class AssistantVM: ObservableObject {
         recognitionTask = nil
 
         let audioSession = AVAudioSession.sharedInstance()
-        try? audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try? audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers])
         try? audioSession.setActive(true)
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
