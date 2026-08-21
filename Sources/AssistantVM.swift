@@ -12,7 +12,7 @@ class AssistantVM: ObservableObject {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
-    private let synthesizer = AVSpeechSynthesizer()
+    private lazy var synthesizer = AVSpeechSynthesizer()
     private let musicPlayer = MusicPlayerService.shared
 
     // Приветственное сообщение
