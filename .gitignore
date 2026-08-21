@@ -1,0 +1,10 @@
+DerivedData/
+Nomad.xcodeproj/
+OfflineBuild/
+Tools/pmtiles/
+Resources/VectorMap/russia.pmtiles
+Nomad-AI-*.ipa
+Nomad-AI-*.zip
+final-ipa*
+ipa-inspect*
+buildlog*

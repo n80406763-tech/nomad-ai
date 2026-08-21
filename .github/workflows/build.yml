@@ -19,6 +19,28 @@ jobs:
       - name: Установить XcodeGen
         run: brew install xcodegen
 
+      - name: Собрать офлайн карту России OSM
+        run: |
+          set -euo pipefail
+          PMTILES_VERSION="1.31.2"
+          if [ "$(uname -m)" = "arm64" ]; then
+            PMTILES_ARCH="Darwin_arm64"
+          else
+            PMTILES_ARCH="Darwin_x86_64"
+          fi
+          TMP_DIR="$(mktemp -d)"
+          curl --fail --location \
+            "https://github.com/protomaps/go-pmtiles/releases/download/v${PMTILES_VERSION}/go-pmtiles-${PMTILES_VERSION}_${PMTILES_ARCH}.zip" \
+            --output "${TMP_DIR}/pmtiles.zip"
+          unzip -q "${TMP_DIR}/pmtiles.zip" -d "${TMP_DIR}/pmtiles"
+          "${TMP_DIR}/pmtiles/pmtiles" extract \
+            "https://build.protomaps.com/20260821.pmtiles" \
+            "Resources/VectorMap/russia.pmtiles" \
+            --region="Resources/VectorMap/russia.geojson" \
+            --maxzoom=10 \
+            --download-threads=6
+          ls -lh "Resources/VectorMap/russia.pmtiles"
+
       - name: Сгенерировать .xcodeproj
         run: xcodegen generate --spec project.yml
 
@@ -58,3 +80,4 @@ jobs:
           name: Nomad-AI.ipa
           path: Nomad.ipa
           retention-days: 14
+          compression-level: 0

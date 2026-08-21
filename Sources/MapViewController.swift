@@ -2,7 +2,7 @@ import UIKit
 import CoreLocation
 
 final class MapViewController: UIViewController {
-    private let mapView = OSMRasterMapView()
+    private let mapView = OSMVectorMapView()
     private var currentPolyline: [CLLocationCoordinate2D] = []
 
     private var hud = UIView()
@@ -52,7 +52,7 @@ final class MapViewController: UIViewController {
         kmhLabel.text = "КМ/Ч"
         distanceLabel = makeLabel(size: 12, weight: .semibold, color: .label)
         modeLabel = makeLabel(size: 10, weight: .bold, color: .systemOrange)
-        modeLabel.text = "GPS ожидает"
+        modeLabel.text = "Нужен доступ к GPS"
 
         [speedLabel, kmhLabel, distanceLabel, modeLabel].forEach(hud.addSubview)
         NSLayoutConstraint.activate([

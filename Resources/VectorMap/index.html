@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="maplibre-gl.css">
+    <style>
+        html, body, #map { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #e5e9df; }
+        .maplibregl-ctrl-logo, .maplibregl-ctrl-attrib { display: none !important; }
+        #attribution { position: fixed; left: 8px; bottom: 8px; z-index: 5; color: #fff; background: rgba(0,0,0,.58); padding: 3px 6px; border-radius: 4px; font: 10px -apple-system, sans-serif; }
+        #status { display: none; position: fixed; left: 16px; right: 16px; bottom: 42px; z-index: 5; color: #fff; background: rgba(45,47,50,.88); padding: 9px 12px; border-radius: 8px; font: 12px -apple-system, sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="status"></div>
+    <div id="attribution">© OpenStreetMap contributors</div>
+    <script src="maplibre-gl.js"></script>
+    <script src="pmtiles.js"></script>
+    <script>
+        const emptyFeatures = { type: "FeatureCollection", features: [] };
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        const map = new maplibregl.Map({
+            container: "map",
+            center: [96, 62],
+            zoom: 2.6,
+            minZoom: 1,
+            maxZoom: 15,
+            renderWorldCopies: false,
+            attributionControl: false,
+            style: {
+                version: 8,
+                sources: {
+                    osmRussia: {
+                        type: "vector",
+                        url: "pmtiles://nomad://app/russia.pmtiles",
+                        attribution: "© OpenStreetMap contributors"
+                    }
+                },
+                layers: [
+                    { id: "background", type: "background", paint: { "background-color": "#e8eadf" } },
+                    { id: "landcover", type: "fill", source: "osmRussia", "source-layer": "landcover", paint: { "fill-color": "#d7e4cc", "fill-opacity": 0.75 } },
+                    { id: "landuse", type: "fill", source: "osmRussia", "source-layer": "landuse", paint: { "fill-color": "#e7e0c9", "fill-opacity": 0.52 } },
+                    { id: "water", type: "fill", source: "osmRussia", "source-layer": "water", paint: { "fill-color": "#9ecde1" } },
+                    { id: "roads-casing", type: "line", source: "osmRussia", "source-layer": "roads", minzoom: 3, paint: { "line-color": "#b9a98c", "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.6, 6, 1.6, 10, 4.4, 15, 12] } },
+                    { id: "roads", type: "line", source: "osmRussia", "source-layer": "roads", minzoom: 3, paint: { "line-color": "#fff8e8", "line-width": ["interpolate", ["linear"], ["zoom"], 3, 0.3, 6, 0.8, 10, 2.4, 15, 8] } },
+                    { id: "buildings", type: "fill", source: "osmRussia", "source-layer": "buildings", minzoom: 10, paint: { "fill-color": "#d5c9c2", "fill-opacity": 0.8 } },
+                    { id: "places", type: "circle", source: "osmRussia", "source-layer": "places", minzoom: 4, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 2, 10, 4], "circle-color": "#546b76", "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 } }
+                ]
+            }
+        });
+
+        let shouldCenterOnFirstUserLocation = true;
+
+        function sourceData(id, data) {
+            const source = map.getSource(id);
+            if (source) source.setData(data);
+        }
+
+        window.nomadSetRoute = function(coordinates, fitCamera) {
+            if (!Array.isArray(coordinates) || coordinates.length < 2) {
+                sourceData("nomad-route", emptyFeatures);
+                return;
+            }
+            sourceData("nomad-route", {
+                type: "FeatureCollection",
+                features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coordinates } }]
+            });
+            if (fitCamera) {
+                const bounds = coordinates.reduce((result, coordinate) => result.extend(coordinate), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
+                map.fitBounds(bounds, { padding: { top: 92, right: 32, bottom: 130, left: 32 }, duration: 0, maxZoom: 12 });
+            }
+        };
+
+        window.nomadClearRoute = function() {
+            sourceData("nomad-route", emptyFeatures);
+        };
+
+        window.nomadSetUser = function(coordinate) {
+            if (!Array.isArray(coordinate) || coordinate.length !== 2) return;
+            sourceData("nomad-user", {
+                type: "FeatureCollection",
+                features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coordinate } }]
+            });
+            if (shouldCenterOnFirstUserLocation) {
+                shouldCenterOnFirstUserLocation = false;
+                map.jumpTo({ center: coordinate, zoom: 13 });
+            }
+        };
+
+        window.nomadCenterOn = function(coordinate) {
+            if (!Array.isArray(coordinate) || coordinate.length !== 2) return;
+            shouldCenterOnFirstUserLocation = false;
+            map.easeTo({ center: coordinate, zoom: Math.max(map.getZoom(), 13), duration: 250 });
+        };
+
+        map.on("load", function() {
+            map.addSource("nomad-route", { type: "geojson", data: emptyFeatures });
+            map.addLayer({ id: "nomad-route-outline", type: "line", source: "nomad-route", paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.94 } });
+            map.addLayer({ id: "nomad-route", type: "line", source: "nomad-route", paint: { "line-color": "#00a8a8", "line-width": 5, "line-opacity": 1 } });
+            map.addSource("nomad-user", { type: "geojson", data: emptyFeatures });
+            map.addLayer({ id: "nomad-user-halo", type: "circle", source: "nomad-user", paint: { "circle-radius": 12, "circle-color": "#1f8fff", "circle-opacity": 0.25 } });
+            map.addLayer({ id: "nomad-user", type: "circle", source: "nomad-user", paint: { "circle-radius": 7, "circle-color": "#1f8fff", "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+            if (window.webkit && window.webkit.messageHandlers.nomadMap) {
+                window.webkit.messageHandlers.nomadMap.postMessage({ type: "ready" });
+            }
+        });
+
+        map.on("error", function(event) {
+            const message = event && event.error && event.error.message ? event.error.message : "Не удалось открыть офлайн-карту России.";
+            const status = document.getElementById("status");
+            status.textContent = message;
+            status.style.display = "block";
+            if (window.webkit && window.webkit.messageHandlers.nomadMap) {
+                window.webkit.messageHandlers.nomadMap.postMessage({ type: "error", message: message });
+            }
+        });
+    </script>
+</body>
+</html>
