@@ -86,6 +86,8 @@ final class MusicPlayerService: NSObject, ObservableObject, AVAudioPlayerDelegat
 
     // AVAudioPlayerDelegate
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        next()  // Автопроигрывание следующего трека
+        DispatchQueue.main.async { [weak self] in
+            self?.next()  // Автопроигрывание следующего трека
+        }
     }
 }

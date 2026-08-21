@@ -64,7 +64,7 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
         modeLabel = makeLabel(size: 10, weight: .bold, color: .orange)
         modeLabel.text = "● GPS"
 
-        [speedLabel, kmhLabel, distanceLabel, modeLabel].forEach { hud.addSubview($0!) }
+        [speedLabel, kmhLabel, distanceLabel, modeLabel].compactMap { $0 }.forEach { hud.addSubview($0) }
 
         NSLayoutConstraint.activate([
             hud.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
@@ -116,30 +116,47 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
         }
     }
 
+    private var isStyleLoaded = false
+    private var pendingRouteToDraw: [CLLocationCoordinate2D]?
+
     // MARK: - Public API
     func updateUserLocation(_ location: CLLocation) {
         // MLNMapView следит сам через showsUserLocation
     }
 
     func drawRoute(_ coordinates: [CLLocationCoordinate2D]) {
-        guard !coordinates.isEmpty, coordinates.count != currentPolyline.count else { return }
+        guard !coordinates.isEmpty else { return }
+        if coordinates.elementsEqual(currentPolyline, by: { $0.latitude == $1.latitude && $0.longitude == $1.longitude }) { return }
+        
         currentPolyline = coordinates
+        
+        guard isStyleLoaded else {
+            pendingRouteToDraw = coordinates
+            return
+        }
+        
         clearRoute()
-
         var coords = coordinates
         let polyline = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
-        mapView.addAnnotation(polyline)
+        mapView?.addAnnotation(polyline)
         routePolyline = polyline
     }
 
     func clearRoute() {
         if let old = routePolyline {
-            mapView.removeAnnotation(old)
+            mapView?.removeAnnotation(old)
             routePolyline = nil
         }
+        pendingRouteToDraw = nil
     }
 
     // MARK: - MLNMapViewDelegate
+    func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+        isStyleLoaded = true
+        if let pending = pendingRouteToDraw {
+            drawRoute(pending)
+        }
+    }
     func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
         return annotation is MLNPolyline ? .cyan : .blue
     }

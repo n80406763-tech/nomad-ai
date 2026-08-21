@@ -97,15 +97,16 @@ struct PoiSearchView: View {
         guard let loc = locationManager.location else { return }
         isLoading = true
         noResults = false
-        Task {
-            results = await OverpassService.shared.searchPOI(
+        Task { @MainActor in
+            let res = await OverpassService.shared.searchPOI(
                 category: selectedCategory,
                 center: loc.coordinate,
                 radiusKm: radiusKm,
                 keyword: searchText.isEmpty ? nil : searchText
             )
-            isLoading = false
-            noResults = results.isEmpty
+            self.results = res
+            self.isLoading = false
+            self.noResults = res.isEmpty
         }
     }
 }

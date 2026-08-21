@@ -59,7 +59,8 @@ class AssistantVM: ObservableObject {
         recognitionRequest?.shouldReportPartialResults = true
 
         let inputNode = audioEngine.inputNode
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest!) { [weak self] result, error in
+        guard let request = recognitionRequest else { return }
+        recognitionTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
             if let result = result, result.isFinal {
                 let text = result.bestTranscription.formattedString
                 DispatchQueue.main.async {

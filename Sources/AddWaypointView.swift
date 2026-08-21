@@ -72,9 +72,10 @@ struct AddWaypointView: View {
     func search() {
         guard !searchText.isEmpty else { return }
         isSearching = true
-        Task {
-            results = await NominatimService.shared.search(query: searchText)
-            isSearching = false
+        Task { @MainActor in
+            let res = await NominatimService.shared.search(query: searchText)
+            self.results = res
+            self.isSearching = false
         }
     }
 
