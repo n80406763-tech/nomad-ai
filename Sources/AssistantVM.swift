@@ -70,6 +70,7 @@ class AssistantVM: ObservableObject {
         }
 
         let format = inputNode.outputFormat(forBus: 0)
+        inputNode.removeTap(onBus: 0) // Фикс краша при двойном нажатии
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
         }
