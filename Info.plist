@@ -37,6 +37,13 @@
 	<string>Микрофон необходим для общения с ИИ-ассистентом.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Распознавание речи используется для голосового управления.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Локальная сеть необходима для загрузки тайлов карты.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 
 	<!-- Доступ к приложению "Файлы" -->
 	<key>UIFileSharingEnabled</key>
