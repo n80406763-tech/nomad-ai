@@ -40,8 +40,10 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
             span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
         ), animated: false)
 
-        let overlay = OpenStreetMapTileOverlay()
+        let overlay = MKTileOverlay(urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
         overlay.canReplaceMapContent = true
+        overlay.minimumZ = 3
+        overlay.maximumZ = 19
         tileOverlay = overlay
         mapView.addOverlay(overlay)
 
@@ -182,21 +184,5 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         view.markerTintColor = .systemTeal
         view.glyphImage = UIImage(systemName: "car.fill")
         return view
-    }
-}
-
-final class OpenStreetMapTileOverlay: MKTileOverlay {
-    private let baseURL = "https://tile.openstreetmap.org"
-
-    override init() {
-        super.init()
-        self.canReplaceMapContent = true
-        self.minimumZ = 3
-        self.maximumZ = 19
-    }
-
-    override func url(forTilePath path: MKTilePath) -> URL {
-        let urlString = "\(baseURL)/\(path.z)/\(path.x)/\(path.y).png"
-        return URL(string: urlString)!
     }
 }
