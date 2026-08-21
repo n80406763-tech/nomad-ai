@@ -3,7 +3,9 @@ import { readFile, writeFile } from "node:fs/promises";
 const [inputPath, outputPath] = process.argv.slice(2);
 
 if (!inputPath || !outputPath) {
-  throw new Error("Usage: node convert-geofabrik-poly.mjs INPUT.poly OUTPUT.geojson");
+  throw new Error(
+    "Usage: node convert-geofabrik-poly.mjs INPUT.poly OUTPUT.geojson",
+  );
 }
 
 const lines = (await readFile(inputPath, "utf8")).split(/\r?\n/);
@@ -16,7 +18,10 @@ for (const rawLine of lines.slice(1)) {
   if (!line) continue;
   if (line === "END") {
     if (currentRing) {
-      currentPolygon.rings.push({ hole: currentRing.hole, coordinates: currentRing.coordinates });
+      currentPolygon.rings.push({
+        hole: currentRing.hole,
+        coordinates: currentRing.coordinates,
+      });
       currentRing = null;
     } else if (currentPolygon) {
       polygons.push(currentPolygon);
@@ -29,7 +34,8 @@ for (const rawLine of lines.slice(1)) {
 
   const pair = line.split(/\s+/).map(Number);
   if (pair.length === 2 && pair.every(Number.isFinite)) {
-    if (!currentRing) throw new Error(`Coordinate without ring header: ${line}`);
+    if (!currentRing)
+      throw new Error(`Coordinate without ring header: ${line}`);
     currentRing.coordinates.push(pair);
     continue;
   }
@@ -40,15 +46,26 @@ for (const rawLine of lines.slice(1)) {
 }
 
 const geometries = polygons.map(({ rings }) => {
-  const outer = rings.filter((ring) => !ring.hole).map((ring) => ring.coordinates);
-  const holes = rings.filter((ring) => ring.hole).map((ring) => ring.coordinates);
+  const outer = rings
+    .filter((ring) => !ring.hole)
+    .map((ring) => ring.coordinates);
+  const holes = rings
+    .filter((ring) => ring.hole)
+    .map((ring) => ring.coordinates);
   return holes.length === 0 && outer.length === 1
     ? { type: "Polygon", coordinates: outer }
-    : { type: "MultiPolygon", coordinates: outer.map((ring) => [ring, ...holes]) };
+    : {
+        type: "MultiPolygon",
+        coordinates: outer.map((ring) => [ring, ...holes]),
+      };
 });
 
-const geometry = geometries.length === 1
-  ? geometries[0]
-  : { type: "GeometryCollection", geometries };
+const geometry =
+  geometries.length === 1
+    ? geometries[0]
+    : { type: "GeometryCollection", geometries };
 
-await writeFile(outputPath, JSON.stringify({ type: "Feature", properties: { name: "Russia" }, geometry }));
+await writeFile(
+  outputPath,
+  JSON.stringify({ type: "Feature", properties: { name: "Russia" }, geometry }),
+);

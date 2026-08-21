@@ -26,14 +26,14 @@ final class RoutingService {
         return first
     }
 
-    /// Строим до 20 различных вариантов маршрута между двумя точками:
+    /// Строим до 8 различных вариантов маршрута между двумя точками:
     /// сначала реальные альтернативы OSRM, затем варианты через смещённые
     /// промежуточные точки (реальные, отдельно рассчитанные маршруты, а не подделка).
     /// onProgress вызывается после каждой партии запросов: (сколько уже найдено, сколько всего попыток запланировано)
     func buildAlternatives(
         from: CLLocationCoordinate2D,
         to: CLLocationCoordinate2D,
-        maxCount: Int = 20,
+        maxCount: Int = 8,
         onProgress: ((Int, Int) -> Void)? = nil
     ) async -> [RouteResult] {
         var found: [RouteResult] = []
@@ -53,8 +53,8 @@ final class RoutingService {
         let perpLat = -dLon / length
         let perpLon = dLat / length
 
-        let offsets: [Double] = [0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.3, -1.3, 1.8, -1.8]
-        let fractions: [Double] = [0.35, 0.5, 0.65]
+        let offsets: [Double] = [0.25, -0.25, 0.5, -0.5]
+        let fractions: [Double] = [0.4, 0.6]
 
         var candidateVias: [CLLocationCoordinate2D] = []
         for offset in offsets {
@@ -75,8 +75,8 @@ final class RoutingService {
         // Ограничиваем число параллельных сетевых запросов, чтобы не перегружать публичный сервер OSRM.
         let neededExtra = max(0, maxCount - found.count)
         if neededExtra > 0 {
-            let vias = Array(candidateVias.prefix(neededExtra * 2))
-            let chunkSize = 4
+            let vias = Array(candidateVias.prefix(neededExtra))
+            let chunkSize = 3
             var index = 0
             let totalAttempts = found.count + vias.count
             while index < vias.count && found.count < maxCount {
@@ -130,8 +130,11 @@ final class RoutingService {
         guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 20
-        let (data, _) = try await URLSession.shared.data(for: request)
+        request.timeoutInterval = 8
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let routes = json?["routes"] as? [[String: Any]], !routes.isEmpty else {
             throw NSError(domain: "RoutingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Маршрут не найден"])

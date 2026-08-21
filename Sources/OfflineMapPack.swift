@@ -5,6 +5,7 @@ enum OfflineMapPack {
 
     static var russiaURL: URL? {
         Bundle.main.url(forResource: "russia", withExtension: "pmtiles", subdirectory: resourceDirectory)
+            ?? Bundle.main.url(forResource: "russia", withExtension: "pmtiles")
     }
 
     static var isBundled: Bool {

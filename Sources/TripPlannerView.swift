@@ -97,7 +97,7 @@ final class TripPlannerVM: ObservableObject {
         isOfflineFallback = false
 
         Task {
-            let results = await RoutingService.shared.buildAlternatives(from: from, to: to, maxCount: 20) { found, total in
+            let results = await RoutingService.shared.buildAlternatives(from: from, to: to, maxCount: 8) { found, total in
                 Task { @MainActor in
                     self.buildProgress = total > 0 ? min(Double(found) / Double(total), 0.98) : 0
                     self.buildStatusText = "Найдено вариантов: \(found)…"
@@ -421,7 +421,7 @@ struct TripPlannerView: View {
             Text(vm.buildStatusText)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Строим до 20 вариантов пути между точками…")
+            Text("Проверяем лучшие варианты пути между точками…")
                 .font(.footnote)
                 .foregroundColor(.gray)
             Spacer(minLength: 100)

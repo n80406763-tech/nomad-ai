@@ -134,12 +134,23 @@ private final class NomadMapResourceHandler: NSObject, WKURLSchemeHandler {
 
     private func resourceURL(for url: URL) -> URL? {
         guard url.host == "app" else { return nil }
-        let fileName = url.lastPathComponent
-        guard !fileName.isEmpty, !fileName.contains("..") else { return nil }
-        let parts = fileName.split(separator: ".", maxSplits: 1).map(String.init)
-        let name = parts.first ?? fileName
-        let extensionName = parts.count > 1 ? parts[1] : nil
-        return Bundle.main.url(forResource: name, withExtension: extensionName, subdirectory: OfflineMapPack.resourceDirectory)
+        let components = url.pathComponents.dropFirst()
+        guard !components.isEmpty,
+              components.allSatisfy({ $0 != "." && $0 != ".." }),
+              let resourcesURL = Bundle.main.resourceURL else { return nil }
+
+        let relativePath = components.joined(separator: "/")
+        let candidateRoots = [
+            resourcesURL.appendingPathComponent(OfflineMapPack.resourceDirectory, isDirectory: true),
+            resourcesURL
+        ]
+        for root in candidateRoots {
+            let candidate = root.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     private func sendRange(of fileURL: URL, request: URLRequest, to task: WKURLSchemeTask) {

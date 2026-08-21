@@ -116,8 +116,12 @@ class NominatimService {
         let urlStr = "https://nominatim.openstreetmap.org/search?q=\(q)&format=json&limit=10&accept-language=ru"
         guard let url = URL(string: urlStr) else { return [] }
         var req = URLRequest(url: url)
+          req.timeoutInterval = 8
         req.setValue("NomadAI/1.0", forHTTPHeaderField: "User-Agent")
-        guard let (data, _) = try? await URLSession.shared.data(for: req),
+          req.setValue("application/json", forHTTPHeaderField: "Accept")
+          guard let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
               let results = try? JSONDecoder().decode([NominatimResult].self, from: data) else { return [] }
         return results
     }
