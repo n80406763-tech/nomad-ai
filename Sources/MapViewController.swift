@@ -8,6 +8,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
     private var userAnnotation: MKPointAnnotation?
     private var currentPolyline: [CLLocationCoordinate2D] = []
     private var hasCenteredOnUser = false
+    private var tileOverlay: MKTileOverlay?
 
     private var hud = UIView()
     private var speedLabel = UILabel()
@@ -30,13 +31,20 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         mapView.translatesAutoresizingMaskIntoConstraints = false
         mapView.delegate = self
         mapView.mapType = .standard
-        mapView.showsCompass = true
-        mapView.showsScale = true
+        mapView.showsCompass = false
+        mapView.showsScale = false
         mapView.showsUserLocation = false
+        mapView.isRotateEnabled = false
         mapView.setRegion(MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680),
             span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
         ), animated: false)
+
+        let overlay = OpenStreetMapTileOverlay()
+        overlay.canReplaceMapContent = true
+        tileOverlay = overlay
+        mapView.addOverlay(overlay)
+
         view.addSubview(mapView)
         NSLayoutConstraint.activate([
             mapView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -157,6 +165,9 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
     }
 
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let tile = overlay as? MKTileOverlay {
+            return MKTileOverlayRenderer(tileOverlay: tile)
+        }
         guard let polyline = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
         let renderer = MKPolylineRenderer(polyline: polyline)
         renderer.strokeColor = .systemTeal
@@ -171,5 +182,21 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         view.markerTintColor = .systemTeal
         view.glyphImage = UIImage(systemName: "car.fill")
         return view
+    }
+}
+
+final class OpenStreetMapTileOverlay: MKTileOverlay {
+    private let baseURL = "https://tile.openstreetmap.org"
+
+    override init() {
+        super.init()
+        self.canReplaceMapContent = true
+        self.minimumZ = 3
+        self.maximumZ = 19
+    }
+
+    override func url(forTilePath path: MKTilePath) -> URL {
+        let urlString = "\(baseURL)/\(path.z)/\(path.x)/\(path.y).png"
+        return URL(string: urlString)!
     }
 }

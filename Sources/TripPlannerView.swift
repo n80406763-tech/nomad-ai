@@ -182,11 +182,12 @@ final class TripPlannerVM: ObservableObject {
 struct TripPlannerView: View {
     @StateObject private var vm = TripPlannerVM()
     @ObservedObject private var downloader = RouteDownloadService.shared
+    @ObservedObject private var locationManager = LocationManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     switch vm.step {
                     case .addresses: addressesSection
@@ -204,6 +205,11 @@ struct TripPlannerView: View {
         .alert("Не получилось", isPresented: Binding(get: { vm.errorMessage != nil }, set: { if !$0 { vm.errorMessage = nil } })) {
             Button("ОК") { vm.errorMessage = nil }
         } message: { Text(vm.errorMessage ?? "") }
+        .onAppear {
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestPermission()
+            }
+        }
         .onReceive(downloader.$state) { state in
             if state == .completed, vm.step == .downloading {
                 vm.step = .ready
@@ -214,16 +220,16 @@ struct TripPlannerView: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             HStack {
-                Text("Nomad AI")
-                    .font(.title2.bold())
+                Text("Nomad")
+                    .font(.title3.bold())
                     .foregroundColor(.cyan)
                 Spacer()
                 if vm.step != .addresses {
                     Button(action: vm.planAnotherTrip) {
-                        Label("Новая поездка", systemImage: "arrow.counterclockwise")
-                            .font(.footnote.weight(.semibold))
+                        Label("Новая", systemImage: "arrow.counterclockwise")
+                            .font(.caption.weight(.semibold))
                     }
                 }
             }
@@ -235,7 +241,7 @@ struct TripPlannerView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
     }
@@ -243,11 +249,11 @@ struct TripPlannerView: View {
     // MARK: Step 1 — адреса
 
     private var addressesSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Куда едем?")
-                .font(.title.bold())
-                .padding(.top, 16)
-            Text("Укажите откуда и куда — построим до 20 вариантов маршрута на выбор.")
+                .font(.title3.bold())
+                .padding(.top, 12)
+            Text("Сперва разрешите доступ к GPS и выберите пункт отправления и назначения.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
