@@ -81,8 +81,6 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         DispatchQueue.main.async {
             self.authorizationStatus = status
             if status == .authorizedAlways || status == .authorizedWhenInUse {
-                manager.showsBackgroundLocationIndicator = true // Required for WhenInUse background
-                manager.allowsBackgroundLocationUpdates = true
                 self.startTracking()
             }
         }
