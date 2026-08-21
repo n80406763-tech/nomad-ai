@@ -150,6 +150,15 @@ private final class NomadMapResourceHandler: NSObject, WKURLSchemeHandler {
                 return candidate
             }
         }
+
+        if let fileName = components.last {
+            for root in candidateRoots {
+                let flattenedCandidate = root.appendingPathComponent(fileName)
+                if FileManager.default.fileExists(atPath: flattenedCandidate.path) {
+                    return flattenedCandidate
+                }
+            }
+        }
         return nil
     }
 
