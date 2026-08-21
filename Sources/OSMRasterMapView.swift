@@ -9,7 +9,7 @@ private struct OSMVisualTile: Hashable {
 
 final class OSMRasterMapView: UIView {
     private let tileSize: CGFloat = 256
-    private var center = CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680)
+    private var mapCenter = CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680)
     private var zoom = 11
     private var panStartCenter: CLLocationCoordinate2D?
     private var route: [CLLocationCoordinate2D] = []
@@ -81,14 +81,14 @@ final class OSMRasterMapView: UIView {
         let wasUnknown = userLocation == nil
         userLocation = location
         if wasUnknown {
-            center = location.coordinate
+            mapCenter = location.coordinate
             zoom = max(zoom, 13)
         }
         setNeedsLayout()
     }
 
     func center(on coordinate: CLLocationCoordinate2D) {
-        center = coordinate
+        mapCenter = coordinate
         zoom = max(zoom, 13)
         setNeedsLayout()
     }
@@ -178,11 +178,11 @@ final class OSMRasterMapView: UIView {
     private func fitRoute() {
         guard route.count > 1, bounds.width > 0, bounds.height > 0 else { return }
 
-        let minLatitude = route.map(\.latitude).min() ?? center.latitude
-        let maxLatitude = route.map(\.latitude).max() ?? center.latitude
-        let minLongitude = route.map(\.longitude).min() ?? center.longitude
-        let maxLongitude = route.map(\.longitude).max() ?? center.longitude
-        center = CLLocationCoordinate2D(
+        let minLatitude = route.map(\.latitude).min() ?? mapCenter.latitude
+        let maxLatitude = route.map(\.latitude).max() ?? mapCenter.latitude
+        let minLongitude = route.map(\.longitude).min() ?? mapCenter.longitude
+        let maxLongitude = route.map(\.longitude).max() ?? mapCenter.longitude
+        mapCenter = CLLocationCoordinate2D(
             latitude: (minLatitude + maxLatitude) / 2,
             longitude: (minLongitude + maxLongitude) / 2
         )
@@ -200,7 +200,7 @@ final class OSMRasterMapView: UIView {
     }
 
     private func viewportOriginAtCurrentZoom() -> CGPoint {
-        let centerPoint = mapPoint(for: center)
+        let centerPoint = mapPoint(for: mapCenter)
         return CGPoint(x: centerPoint.x - bounds.width / 2, y: centerPoint.y - bounds.height / 2)
     }
 
@@ -232,11 +232,11 @@ final class OSMRasterMapView: UIView {
         let translation = recognizer.translation(in: self)
         switch recognizer.state {
         case .began:
-            panStartCenter = center
+            panStartCenter = mapCenter
         case .changed:
             guard let panStartCenter else { return }
             let point = mapPoint(for: panStartCenter)
-            center = coordinate(for: CGPoint(x: point.x - translation.x, y: point.y - translation.y))
+            mapCenter = coordinate(for: CGPoint(x: point.x - translation.x, y: point.y - translation.y))
             setNeedsLayout()
         default:
             panStartCenter = nil
