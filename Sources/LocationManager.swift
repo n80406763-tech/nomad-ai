@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import Combine
+import UIKit
 
 /// Центральный менеджер GPS с фильтрацией шума и работой в фоне.
 final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
