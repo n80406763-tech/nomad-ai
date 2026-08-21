@@ -11,10 +11,10 @@ targets:
     sources:
       - Sources
       - Resources
-    info:
-      path: Info.plist
     settings:
       base:
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         PRODUCT_BUNDLE_IDENTIFIER: com.nomadai.app
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"
