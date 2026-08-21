@@ -40,6 +40,7 @@ struct MainTabView: View {
                 }
                 .tag(4)
         }
+            .navigationViewStyle(.stack)
         .accentColor(.cyan)
         .onAppear {
             let appearance = UITabBarAppearance()

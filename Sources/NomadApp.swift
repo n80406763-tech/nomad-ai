@@ -10,7 +10,6 @@ struct NomadApp: App {
                 MainTabView()
                 DiagnosticsBanner()
             }
-            .preferredColorScheme(.dark)
         }
     }
 }

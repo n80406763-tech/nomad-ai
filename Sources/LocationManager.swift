@@ -31,7 +31,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func requestPermission() {
-        manager.requestAlwaysAuthorization()
+        manager.requestWhenInUseAuthorization()
     }
 
     func startTracking() {

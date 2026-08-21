@@ -1,40 +1,87 @@
 import SwiftUI
+import UIKit
 import MapLibre
 import CoreLocation
 
 struct SafeMapView: View {
-    @State private var isMapRequested = false
     @ObservedObject private var diagnostics = DiagnosticsStore.shared
+    @ObservedObject private var locationManager = LocationManager.shared
 
     var body: some View {
-        Group {
-            if isMapRequested {
-                MapScreenView()
-            } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "map.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.cyan)
-                    Text("Карта запущена в безопасном режиме")
-                        .font(.headline)
+        ScrollView {
+            VStack(spacing: 22) {
+                Image(systemName: "map.fill")
+                    .font(.system(size: 52, weight: .medium))
+                    .foregroundColor(.cyan)
+
+                VStack(spacing: 8) {
+                    Text("Карта временно отключена")
+                        .font(.title2.weight(.semibold))
                         .multilineTextAlignment(.center)
-                    Text("MapLibre раньше закрывал приложение во время запуска. Сначала откройте остальные вкладки, затем отдельно проверьте карту.")
-                        .font(.subheadline)
+                    Text("Нативный модуль MapLibre закрывает приложение во время запуска. Остальные функции работают, поэтому карта заблокирована до замены модуля.")
+                        .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("Проверить запуск карты") {
-                        diagnostics.report(
-                            title: "Проверка MapLibre",
-                            details: "Если приложение закроется после этой кнопки, причина находится в нативной инициализации MapLibre/Metal. До нажатия приложение остаётся доступным."
-                        )
-                        isMapRequested = true
+                }
+
+                VStack(spacing: 12) {
+                    Label(locationStatus, systemImage: locationIcon)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(locationManager.authorizationStatus == .denied ? .orange : .secondary)
+
+                    Button {
+                        locationManager.requestPermission()
+                    } label: {
+                        Label("Разрешить GPS", systemImage: "location.fill")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted)
+
+                    if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+                        Button("Открыть настройки GPS") {
+                            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                            UIApplication.shared.open(url)
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .padding(28)
+                .padding(18)
+                .frame(maxWidth: .infinity)
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                Button {
+                    diagnostics.report(
+                        title: "MapLibre отключён",
+                        details: "Проверка карты не запускается, потому что предыдущая инициализация MapLibre/Metal завершала процесс. Для восстановления карты нужен отдельный модуль или другая версия MapLibre."
+                    )
+                } label: {
+                    Label("Почему карта недоступна", systemImage: "info.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 32)
         }
         .navigationTitle("Карта")
+    }
+
+    private var locationStatus: String {
+        switch locationManager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            return locationManager.location == nil ? "GPS разрешён, ожидается сигнал" : "GPS работает"
+        case .denied: return "GPS запрещён в настройках"
+        case .restricted: return "GPS ограничен системой"
+        case .notDetermined: return "GPS ещё не запрашивался"
+        @unknown default: return "Статус GPS неизвестен"
+        }
+    }
+
+    private var locationIcon: String {
+        locationManager.authorizationStatus == .authorizedAlways || locationManager.authorizationStatus == .authorizedWhenInUse
+            ? "location.fill" : "location.slash"
     }
 }
 
