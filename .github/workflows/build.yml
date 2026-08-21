@@ -2,7 +2,7 @@ name: Build Unsigned IPA — Nomad AI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master", "main" ]
   workflow_dispatch:
     inputs:
       release_tag:
