@@ -70,7 +70,7 @@ struct MapScreenView: View {
         .navigationTitle("Nomad AI")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showRouteBuilder) { RouteBuilderView() }
-        .sheet(isPresented: $showPOIPanel) { POISearchView() }
+        .sheet(isPresented: $showPOIPanel) { PoiSearchView() }
         .onReceive(locationManager.$location) { loc in
             guard let loc = loc else { return }
             checkOffRoute(location: loc)

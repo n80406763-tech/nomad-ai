@@ -37,7 +37,6 @@ struct AssistantView: View {
                 if vm.isThinking {
                     HStack {
                         Image(systemName: "ellipsis.bubble.fill")
-                            .symbolEffect(.variableColor)
                             .foregroundColor(.cyan)
                         Text("Ассистент думает...")
                             .font(.caption)
