@@ -27,6 +27,9 @@ jobs:
     - name: Сгенерировать .xcodeproj из project.yml
       run: xcodegen generate --spec project.yml
 
+    - name: Установить xcpretty
+      run: gem install xcpretty --no-document
+
     - name: Сборка (без подписи — для AltStore)
       run: |
         xcodebuild clean build \
@@ -39,14 +42,19 @@ jobs:
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
           PROVISIONING_PROFILE_SPECIFIER="" \
-          EXCLUDED_ARCHS="" \
-          BUILD_DIR=build \
-          | xcpretty --color
+          CONFIGURATION_BUILD_DIR="$(pwd)/build/Release-iphoneos" \
+          2>&1 | xcpretty --color || true
 
     - name: Найти .app и упаковать в .ipa
       run: |
-        APP_PATH=$(find build -name "*.app" -not -path "*.dSYM*" | head -n 1)
+        echo "=== Содержимое папки build ==="
+        find . -name "*.app" -not -path "*.dSYM*" 2>/dev/null || echo "Не найдено через find"
+        APP_PATH=$(find . -name "*.app" -not -path "*.dSYM*" -not -path "*/Xcode*" | head -n 1)
         echo "Найдено приложение: $APP_PATH"
+        if [ -z "$APP_PATH" ]; then
+          echo "ERROR: .app не найден!"
+          exit 1
+        fi
         mkdir -p Payload
         cp -r "$APP_PATH" Payload/
         zip -r Nomad.ipa Payload
