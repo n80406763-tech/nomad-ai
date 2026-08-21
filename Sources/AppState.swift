@@ -7,7 +7,11 @@ final class AppState: ObservableObject {
 
     @Published var selectedTab = 0
     @Published var recenterToken = UUID()
-    @Published var shouldShowPlanner = true
+    @Published var shouldShowPlanner: Bool
+
+    private init() {
+        shouldShowPlanner = RouteStore.shared.activeRoute == nil
+    }
 
     /// Переключиться на карту и сразу отцентрировать на текущей позиции (как в реальном навигаторе)
     func startTrip() {

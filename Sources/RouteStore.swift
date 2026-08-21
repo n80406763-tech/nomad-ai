@@ -5,6 +5,7 @@ import CoreLocation
 final class RouteStore: ObservableObject {
     static let shared = RouteStore()
     private let key = "saved_routes_v1"
+    private let activeRouteKey = "active_route_id_v1"
 
     @Published var routes: [SavedRoute] = []
     @Published var activeRoute: SavedRoute?
@@ -19,19 +20,32 @@ final class RouteStore: ObservableObject {
 
     func delete(_ route: SavedRoute) {
         routes.removeAll { $0.id == route.id }
-        if activeRoute?.id == route.id { activeRoute = nil }
+        if activeRoute?.id == route.id {
+            activeRoute = nil
+            UserDefaults.standard.removeObject(forKey: activeRouteKey)
+        }
         persist()
     }
 
     func activate(_ route: SavedRoute) {
-        for i in routes.indices { routes[i].isActive = routes[i].id == route.id }
-        activeRoute = route
+        routes = routes.map { savedRoute in
+            var updatedRoute = savedRoute
+            updatedRoute.isActive = updatedRoute.id == route.id
+            return updatedRoute
+        }
+        activeRoute = routes.first { $0.id == route.id }
+        UserDefaults.standard.set(route.id.uuidString, forKey: activeRouteKey)
         persist()
     }
 
     func deactivate() {
-        for i in routes.indices { routes[i].isActive = false }
+        routes = routes.map { savedRoute in
+            var updatedRoute = savedRoute
+            updatedRoute.isActive = false
+            return updatedRoute
+        }
         activeRoute = nil
+        UserDefaults.standard.removeObject(forKey: activeRouteKey)
         persist()
     }
 
@@ -89,6 +103,10 @@ final class RouteStore: ObservableObject {
             return
         }
         routes = loaded
-        activeRoute = loaded.first { $0.isActive }
+        let activeID = UserDefaults.standard.string(forKey: activeRouteKey).flatMap(UUID.init(uuidString:))
+        activeRoute = loaded.first { $0.id == activeID } ?? loaded.first { $0.isActive }
+        if let activeRoute {
+            UserDefaults.standard.set(activeRoute.id.uuidString, forKey: activeRouteKey)
+        }
     }
 }
