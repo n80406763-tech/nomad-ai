@@ -12,6 +12,8 @@ struct MainTabView: View {
                     .ignoresSafeArea()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .onAppear {
             UITabBar.appearance().isHidden = true
             UITabBar.appearance().backgroundImage = UIImage()

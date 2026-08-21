@@ -10,6 +10,8 @@ struct NomadApp: App {
                 MainTabView()
                 DiagnosticsBanner()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
         }
     }
 }

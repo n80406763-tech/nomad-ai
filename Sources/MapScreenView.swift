@@ -13,6 +13,7 @@ struct MapScreenView: View {
     var body: some View {
         ZStack {
             MapView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 10) {
@@ -72,6 +73,7 @@ struct MapScreenView: View {
             .padding(.top, 14)
             .padding(.horizontal, 16)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
         .sheet(isPresented: $showRouteBuilder) { RouteBuilderView() }
         .sheet(isPresented: $showPOIPanel) { PoiSearchView() }

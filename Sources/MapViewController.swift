@@ -20,6 +20,11 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         didSet { hud.isHidden = hudHidden }
     }
 
+    override func loadView() {
+        view = UIView(frame: UIScreen.main.bounds)
+        view.backgroundColor = .black
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupMap()
