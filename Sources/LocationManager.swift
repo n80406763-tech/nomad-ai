@@ -24,7 +24,6 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.activityType = .automotiveNavigation
-        manager.allowsBackgroundLocationUpdates = true
         manager.pausesLocationUpdatesAutomatically = false
         manager.distanceFilter = 3               // обновляем каждые 3 метра
         manager.headingFilter = 5                // обновляем при повороте > 5°
@@ -81,6 +80,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         DispatchQueue.main.async {
             self.authorizationStatus = status
             if status == .authorizedAlways || status == .authorizedWhenInUse {
+                manager.allowsBackgroundLocationUpdates = true
                 self.startTracking()
             }
         }

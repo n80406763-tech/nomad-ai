@@ -14,7 +14,6 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - Sources
-    resources:
       - path: Resources
         type: folder
     info:
@@ -24,6 +23,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.nomadai.app
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
       - package: MapLibre
         product: MapLibre
+    preBuildScripts:
+      - name: Compile Assets
+        script: |
+          echo "Assets included"
