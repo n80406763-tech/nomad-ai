@@ -2,7 +2,7 @@ name: Build Unsigned IPA — Nomad AI
 
 on:
   push:
-    branches: [ "master", "main" ]
+    branches: ["master", "main"]
   workflow_dispatch:
 
 jobs:
@@ -10,56 +10,51 @@ jobs:
     runs-on: macos-15
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Показать версию Xcode
-      run: xcodebuild -version
+      - name: Показать версию Xcode
+        run: xcodebuild -version
 
-    - name: Установить XcodeGen
-      run: brew install xcodegen
+      - name: Установить XcodeGen
+        run: brew install xcodegen
 
-    - name: Сгенерировать .xcodeproj
-      run: xcodegen generate --spec project.yml
+      - name: Сгенерировать .xcodeproj
+        run: xcodegen generate --spec project.yml
 
-    - name: Сборка без подписи
-      run: |
-        set -o pipefail
-        xcodebuild clean build \
-          -project Nomad.xcodeproj \
-          -scheme Nomad \
-          -configuration Release \
-          -sdk iphoneos \
-          -destination "generic/platform=iOS" \
-          -derivedDataPath DerivedData \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO \
-          CODE_SIGNING_ALLOWED=NO \
-          PROVISIONING_PROFILE_SPECIFIER="" \
-          OTHER_CODE_SIGN_FLAGS="--deep"
+      - name: Сборка без подписи
+        run: |
+          set -o pipefail
+          xcodebuild clean build \
+            -project Nomad.xcodeproj \
+            -scheme Nomad \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            PROVISIONING_PROFILE_SPECIFIER=""
 
-    - name: Упаковать в .ipa (с псевдо-подписью)
-      run: |
-        brew install ldid
-        APP_PATH=$(find DerivedData -name "*.app" -not -path "*.dSYM*" | head -n 1)
-        echo "Найдено: $APP_PATH"
-        if [ -z "$APP_PATH" ]; then
-          echo "ERROR: .app не найден"
-          exit 1
-        fi
-        
-        ldid -S "$APP_PATH"
-        
-        mkdir -p Payload
-        cp -r "$APP_PATH" Payload/
-        chmod -R 755 Payload/
-        
-        zip -r Nomad.ipa Payload
-        ls -lh Nomad.ipa
+      - name: Упаковать unsigned IPA
+        run: |
+          APP_PATH=$(find DerivedData -name "*.app" -not -path "*.dSYM*" | head -n 1)
+          echo "Найдено: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: .app не найден"
+            exit 1
+          fi
 
-    - name: Загрузить IPA
-      uses: actions/upload-artifact@v4
-      with:
-        name: Nomad-AI.ipa
-        path: Nomad.ipa
-        retention-days: 14
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+
+          zip -r Nomad.ipa Payload
+          ls -lh Nomad.ipa
+
+      - name: Загрузить IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nomad-AI.ipa
+          path: Nomad.ipa
+          retention-days: 14
