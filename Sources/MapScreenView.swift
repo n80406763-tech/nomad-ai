@@ -11,19 +11,37 @@ struct MapScreenView: View {
     @State private var offRouteDistance: Double = 0
 
     var body: some View {
-        ZStack(alignment: .top) {
+        ZStack {
             MapView()
                 .ignoresSafeArea()
 
-            VStack(spacing: 8) {
-                if let route = routeStore.activeRoute {
-                    Label(route.name, systemImage: "location.north.line.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(.regularMaterial)
-                        .clipShape(Capsule())
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    if let route = routeStore.activeRoute {
+                        Label(route.name, systemImage: "location.north.line.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial)
+                            .clipShape(Capsule())
+                    }
+                    Spacer()
+                    Button { showRouteBuilder = true } label: {
+                        Image(systemName: "route")
+                            .font(.system(size: 18, weight: .semibold))
+                            .frame(width: 42, height: 42)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                    }
+                    Button { showPOIPanel = true } label: {
+                        Image(systemName: "fuelpump.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .frame(width: 42, height: 42)
+                            .background(.regularMaterial)
+                            .clipShape(Circle())
+                    }
                 }
+
                 if showOffRouteBanner {
                     Label("Вы съехали с маршрута на \(Int(offRouteDistance)) м", systemImage: "exclamationmark.triangle.fill")
                         .font(.subheadline.weight(.semibold))
@@ -33,50 +51,28 @@ struct MapScreenView: View {
                         .background(.regularMaterial)
                         .clipShape(Capsule())
                 }
-            }
-            .padding(.top, 12)
-            .frame(maxWidth: .infinity)
 
-            VStack {
                 Spacer()
+
                 HStack {
                     Spacer()
                     Button {
                         appState.recenterToken = UUID()
                     } label: {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.cyan)
-                            .frame(width: 46, height: 46)
+                            .font(.system(size: 20, weight: .semibold))
+                            .frame(width: 52, height: 52)
                             .background(.regularMaterial)
                             .clipShape(Circle())
                             .shadow(radius: 3)
                     }
-                    .padding(.trailing, 16)
                 }
-                .padding(.bottom, 78)
+                .padding(.bottom, 22)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 12) {
-                Button { showRouteBuilder = true } label: {
-                    Label("Маршрут", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button { showPOIPanel = true } label: {
-                    Label("Места", systemImage: "fuelpump.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
+            .padding(.top, 14)
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
         }
-        .navigationBarHidden(true)
-        .ignoresSafeArea(edges: .top)
+        .ignoresSafeArea()
         .sheet(isPresented: $showRouteBuilder) { RouteBuilderView() }
         .sheet(isPresented: $showPOIPanel) { PoiSearchView() }
         .onAppear {
