@@ -4,55 +4,49 @@ on:
   push:
     branches: [ "master", "main" ]
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Release tag (e.g. v1.0.0)'
-        required: false
-        default: ''
 
 jobs:
   build:
-    runs-on: macos-14   # macOS Sonoma + Xcode 15
+    runs-on: macos-14
 
     steps:
-    - name: Checkout код
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Выбрать Xcode 15
-      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+    - name: Выбрать Xcode 15.4
+      run: |
+        sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+        xcodebuild -version
 
     - name: Установить XcodeGen
       run: brew install xcodegen
 
-    - name: Сгенерировать .xcodeproj из project.yml
+    - name: Сгенерировать .xcodeproj
       run: xcodegen generate --spec project.yml
 
-    - name: Установить xcpretty
-      run: gem install xcpretty --no-document
-
-    - name: Сборка (без подписи — для AltStore)
+    - name: Сборка без подписи
       run: |
+        set -o pipefail
         xcodebuild clean build \
           -project Nomad.xcodeproj \
           -scheme Nomad \
           -configuration Release \
           -sdk iphoneos \
           -destination "generic/platform=iOS" \
+          -derivedDataPath DerivedData \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
           PROVISIONING_PROFILE_SPECIFIER="" \
-          CONFIGURATION_BUILD_DIR="$(pwd)/build/Release-iphoneos" \
-          2>&1 | xcpretty --color || true
+          OTHER_CODE_SIGN_FLAGS="--deep"
 
-    - name: Найти .app и упаковать в .ipa
+    - name: Упаковать в .ipa
       run: |
-        echo "=== Содержимое папки build ==="
-        find . -name "*.app" -not -path "*.dSYM*" 2>/dev/null || echo "Не найдено через find"
-        APP_PATH=$(find . -name "*.app" -not -path "*.dSYM*" -not -path "*/Xcode*" | head -n 1)
-        echo "Найдено приложение: $APP_PATH"
+        APP_PATH=$(find DerivedData -name "*.app" -not -path "*.dSYM*" | head -n 1)
+        echo "Найдено: $APP_PATH"
         if [ -z "$APP_PATH" ]; then
-          echo "ERROR: .app не найден!"
+          echo "ERROR: .app не найден"
+          find DerivedData -type d | head -30
           exit 1
         fi
         mkdir -p Payload
@@ -60,32 +54,9 @@ jobs:
         zip -r Nomad.ipa Payload
         ls -lh Nomad.ipa
 
-    - name: Загрузить .ipa как артефакт GitHub Actions
+    - name: Загрузить IPA
       uses: actions/upload-artifact@v4
       with:
-        name: Nomad-AI-${{ github.sha }}.ipa
+        name: Nomad-AI.ipa
         path: Nomad.ipa
         retention-days: 14
-
-    - name: Создать GitHub Release (если указан тег)
-      if: ${{ github.event.inputs.release_tag != '' }}
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.event.inputs.release_tag }}
-        name: "Nomad AI ${{ github.event.inputs.release_tag }}"
-        files: Nomad.ipa
-        body: |
-          ## Nomad AI — Офлайн Навигатор
-          
-          Установка через AltStore:
-          1. Скачайте Nomad.ipa
-          2. Откройте AltStore → My Apps → +
-          3. Выберите скачанный файл
-          
-          ### Что нового
-          - Офлайн навигация с GPS
-          - Голосовой ИИ-ассистент
-          - Поиск заправок и отелей
-          - Музыкальный плеер
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
