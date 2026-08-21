@@ -80,7 +80,10 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         DispatchQueue.main.async {
             self.authorizationStatus = status
             if status == .authorizedAlways || status == .authorizedWhenInUse {
-                manager.allowsBackgroundLocationUpdates = true
+                // Задержка предотвращает краш при вызове во время старта приложения
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    manager.allowsBackgroundLocationUpdates = true
+                }
                 self.startTracking()
             }
         }

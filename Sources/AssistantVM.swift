@@ -38,9 +38,12 @@ class AssistantVM: ObservableObject {
     }
 
     private func startRecording() {
-        SFSpeechRecognizer.requestAuthorization { status in
-            guard status == .authorized else { return }
-            DispatchQueue.main.async { self.beginCapture() }
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+            guard granted else { return }
+            SFSpeechRecognizer.requestAuthorization { status in
+                guard status == .authorized else { return }
+                DispatchQueue.main.async { self.beginCapture() }
+            }
         }
     }
 
