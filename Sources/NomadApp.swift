@@ -6,20 +6,10 @@ struct NomadApp: App {
 
     var body: some Scene {
         WindowGroup {
-            VStack(spacing: 20) {
-                Text("Привет!")
-                    .font(.largeTitle)
-                    .foregroundColor(.white)
-                Button("Тест") {
-                    print("Кнопка нажата")
-                }
-                .padding()
-                .background(Color.cyan)
-                .cornerRadius(10)
-                .foregroundColor(.white)
+            ZStack(alignment: .top) {
+                MainTabView()
+                DiagnosticsBanner()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
             .preferredColorScheme(.dark)
         }
     }

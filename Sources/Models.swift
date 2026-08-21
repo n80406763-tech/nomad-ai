@@ -33,7 +33,19 @@ struct SavedRoute: Identifiable, Codable {
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         isActive = try c.decode(Bool.self, forKey: .isActive)
         let coords = try c.decode([[Double]].self, forKey: .polylineCoords)
-        polyline = coords.map { CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) }
+        polyline = try coords.map { pair in
+            guard pair.count == 2,
+                  pair[0].isFinite,
+                  pair[1].isFinite,
+                  (-90...90).contains(pair[0]),
+                  (-180...180).contains(pair[1]) else {
+                throw DecodingError.dataCorrupted(.init(
+                    codingPath: c.codingPath,
+                    debugDescription: "Некорректная координата маршрута"
+                ))
+            }
+            return CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
+        }
     }
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)

@@ -82,11 +82,31 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             self.authorizationStatus = status
             if status == .authorizedAlways || status == .authorizedWhenInUse {
                 self.startTracking()
+            } else if status == .denied {
+                Task { @MainActor in
+                    DiagnosticsStore.shared.report(
+                        title: "GPS отключён",
+                        details: "Разрешение на геолокацию запрещено. Откройте Настройки iPhone и разрешите доступ для Nomad AI."
+                    )
+                }
+            } else if status == .restricted {
+                Task { @MainActor in
+                    DiagnosticsStore.shared.report(
+                        title: "GPS недоступен",
+                        details: "Доступ к геолокации ограничен системой или настройками устройства."
+                    )
+                }
             }
         }
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         print("[LocationManager] Ошибка GPS: \(error.localizedDescription)")
+        Task { @MainActor in
+            DiagnosticsStore.shared.report(
+                title: "Ошибка GPS",
+                details: error.localizedDescription
+            )
+        }
     }
 }

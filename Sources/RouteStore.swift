@@ -76,7 +76,18 @@ final class RouteStore: ObservableObject {
     }
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let loaded = try? JSONDecoder().decode([SavedRoute].self, from: data) else { return }
+              let loaded = try? JSONDecoder().decode([SavedRoute].self, from: data) else {
+            if UserDefaults.standard.data(forKey: key) != nil {
+                UserDefaults.standard.removeObject(forKey: key)
+                Task { @MainActor in
+                    DiagnosticsStore.shared.report(
+                        title: "Сохранённые маршруты повреждены",
+                        details: "Неверные данные маршрута удалены. Приложение продолжило запуск без старых маршрутов."
+                    )
+                }
+            }
+            return
+        }
         routes = loaded
         activeRoute = loaded.first { $0.isActive }
     }

@@ -37,7 +37,20 @@ final class RoutingService {
         var coords: [CLLocationCoordinate2D] = []
         if let geometry = first["geometry"] as? [String: Any],
            let coordsRaw = geometry["coordinates"] as? [[Double]] {
-            coords = coordsRaw.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
+            coords = coordsRaw.compactMap { pair in
+                guard pair.count >= 2,
+                      pair[0].isFinite,
+                      pair[1].isFinite,
+                      (-180...180).contains(pair[0]),
+                      (-90...90).contains(pair[1]) else { return nil }
+                return CLLocationCoordinate2D(latitude: pair[1], longitude: pair[0])
+            }
+        }
+
+        guard coords.count >= 2 else {
+            throw NSError(domain: "RoutingService", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "Сервис вернул некорректную геометрию маршрута"
+            ])
         }
 
         return RouteResult(polyline: coords, distanceKm: distance, durationMin: duration)
@@ -45,6 +58,9 @@ final class RoutingService {
 
     /// Офлайн fallback: прямые линии между точками
     func buildOfflineRoute(waypoints: [CLLocationCoordinate2D]) -> RouteResult {
+        guard waypoints.count >= 2 else {
+            return RouteResult(polyline: waypoints, distanceKm: 0, durationMin: 0)
+        }
         var totalDist = 0.0
         for i in 0..<(waypoints.count - 1) {
             let a = CLLocation(latitude: waypoints[i].latitude, longitude: waypoints[i].longitude)

@@ -5,7 +5,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationView { MapView() }
+            NavigationView { SafeMapView() }
                 .tabItem {
                     Image(systemName: "map.fill")
                     Text("Карта")

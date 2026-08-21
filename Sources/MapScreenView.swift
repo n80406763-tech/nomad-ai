@@ -2,6 +2,42 @@ import SwiftUI
 import MapLibre
 import CoreLocation
 
+struct SafeMapView: View {
+    @State private var isMapRequested = false
+    @ObservedObject private var diagnostics = DiagnosticsStore.shared
+
+    var body: some View {
+        Group {
+            if isMapRequested {
+                MapScreenView()
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.cyan)
+                    Text("Карта запущена в безопасном режиме")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    Text("MapLibre раньше закрывал приложение во время запуска. Сначала откройте остальные вкладки, затем отдельно проверьте карту.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Проверить запуск карты") {
+                        diagnostics.report(
+                            title: "Проверка MapLibre",
+                            details: "Если приложение закроется после этой кнопки, причина находится в нативной инициализации MapLibre/Metal. До нажатия приложение остаётся доступным."
+                        )
+                        isMapRequested = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(28)
+            }
+        }
+        .navigationTitle("Карта")
+    }
+}
+
 /// Главный экран карты (вкладка 1)
 struct MapScreenView: View {
     @ObservedObject var locationManager = LocationManager.shared

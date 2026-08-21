@@ -127,16 +127,15 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
 
     func drawRoute(_ coordinates: [CLLocationCoordinate2D]) {
         guard !coordinates.isEmpty else { return }
-        if coordinates.elementsEqual(currentPolyline, by: { $0.latitude == $1.latitude && $0.longitude == $1.longitude }) { return }
-        
-        currentPolyline = coordinates
-        
+
         guard isStyleLoaded else {
             pendingRouteToDraw = coordinates
             return
         }
-        
+
+        if coordinates.elementsEqual(currentPolyline, by: { $0.latitude == $1.latitude && $0.longitude == $1.longitude }) { return }
         clearRoute()
+        currentPolyline = coordinates
         var coords = coordinates
         let polyline = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
         mapView?.addAnnotation(polyline)
@@ -148,6 +147,7 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
             mapView?.removeAnnotation(old)
             routePolyline = nil
         }
+        currentPolyline = []
         pendingRouteToDraw = nil
     }
 
@@ -155,6 +155,7 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         isStyleLoaded = true
         if let pending = pendingRouteToDraw {
+            pendingRouteToDraw = nil
             drawRoute(pending)
         }
     }
