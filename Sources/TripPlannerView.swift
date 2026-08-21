@@ -185,20 +185,26 @@ struct TripPlannerView: View {
     @ObservedObject private var locationManager = LocationManager.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            ScrollView(showsIndicators: false) {
+        Group {
+            if hasLocationAccess {
                 VStack(spacing: 0) {
-                    switch vm.step {
-                    case .addresses: addressesSection
-                    case .building: buildingSection
-                    case .selecting: selectingSection
-                    case .downloadOffer: downloadOfferSection
-                    case .downloading: downloadingSection
-                    case .ready: readySection
+                    header
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            switch vm.step {
+                            case .addresses: addressesSection
+                            case .building: buildingSection
+                            case .selecting: selectingSection
+                            case .downloadOffer: downloadOfferSection
+                            case .downloading: downloadingSection
+                            case .ready: readySection
+                            }
+                        }
+                        .padding(.bottom, 24)
                     }
                 }
-                .padding(.bottom, 24)
+            } else {
+                locationAccessScreen
             }
         }
         .background(Color(UIColor.systemBackground).ignoresSafeArea())
@@ -206,14 +212,79 @@ struct TripPlannerView: View {
             Button("ОК") { vm.errorMessage = nil }
         } message: { Text(vm.errorMessage ?? "") }
         .onAppear {
-            if locationManager.authorizationStatus == .notDetermined {
-                locationManager.requestPermission()
-            }
+            locationManager.requestPermission()
         }
         .onReceive(downloader.$state) { state in
             if state == .completed, vm.step == .downloading {
                 vm.step = .ready
             }
+        }
+    }
+
+    private var hasLocationAccess: Bool {
+        locationManager.authorizationStatus == .authorizedAlways || locationManager.authorizationStatus == .authorizedWhenInUse
+    }
+
+    private var locationAccessScreen: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "location.circle.fill")
+                .font(.system(size: 66))
+                .foregroundColor(.cyan)
+            Text("Нужна геолокация")
+                .font(.title2.bold())
+            Text(locationAccessMessage)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+            Button(action: requestOrOpenLocationSettings) {
+                Label(locationAccessActionTitle, systemImage: locationAccessActionIcon)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.cyan)
+                    .foregroundColor(.black)
+                    .cornerRadius(14)
+            }
+            .padding(.horizontal, 24)
+            Spacer()
+        }
+    }
+
+    private var locationAccessMessage: String {
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            return "Без доступа к геолокации навигатор не может определить вашу позицию и начать маршрут."
+        default:
+            return "Разрешите доступ к геолокации. Сначала Nomad определит текущую позицию, затем позволит выбрать маршрут."
+        }
+    }
+
+    private var locationAccessActionTitle: String {
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            return "Открыть настройки GPS"
+        default:
+            return "Разрешить геолокацию"
+        }
+    }
+
+    private var locationAccessActionIcon: String {
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            return "gearshape.fill"
+        default:
+            return "location.fill"
+        }
+    }
+
+    private func requestOrOpenLocationSettings() {
+        switch locationManager.authorizationStatus {
+        case .denied, .restricted:
+            locationManager.openLocationSettings()
+        default:
+            locationManager.requestPermission()
         }
     }
 

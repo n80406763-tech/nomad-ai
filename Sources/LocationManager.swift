@@ -31,7 +31,26 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func requestPermission() {
-        manager.requestWhenInUseAuthorization()
+        guard CLLocationManager.locationServicesEnabled() else {
+            reportLocationServicesDisabled()
+            return
+        }
+
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            startTracking()
+        case .denied, .restricted:
+            reportLocationAccessDenied()
+        @unknown default:
+            break
+        }
+    }
+
+    func openLocationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     func startTracking() {
@@ -83,20 +102,28 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             if status == .authorizedAlways || status == .authorizedWhenInUse {
                 self.startTracking()
             } else if status == .denied {
-                Task { @MainActor in
-                    DiagnosticsStore.shared.report(
-                        title: "GPS отключён",
-                        details: "Разрешение на геолокацию запрещено. Откройте Настройки iPhone и разрешите доступ для Nomad AI."
-                    )
-                }
+                self.reportLocationAccessDenied()
             } else if status == .restricted {
-                Task { @MainActor in
-                    DiagnosticsStore.shared.report(
-                        title: "GPS недоступен",
-                        details: "Доступ к геолокации ограничен системой или настройками устройства."
-                    )
-                }
+                self.reportLocationServicesDisabled()
             }
+        }
+    }
+
+    private func reportLocationAccessDenied() {
+        Task { @MainActor in
+            DiagnosticsStore.shared.report(
+                title: "GPS отключён",
+                details: "Доступ к геолокации уже был запрещён. Откройте Настройки iPhone и разрешите доступ для Nomad."
+            )
+        }
+    }
+
+    private func reportLocationServicesDisabled() {
+        Task { @MainActor in
+            DiagnosticsStore.shared.report(
+                title: "GPS недоступен",
+                details: "Включите Службы геолокации в настройках iPhone, затем вернитесь в Nomad."
+            )
         }
     }
 
