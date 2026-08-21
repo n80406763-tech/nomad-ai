@@ -9,14 +9,21 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
     private var currentPolyline: [CLLocationCoordinate2D] = []
     private var hasCenteredOnUser = false
 
+    private var hud = UIView()
     private var speedLabel = UILabel()
     private var distanceLabel = UILabel()
     private var modeLabel = UILabel()
+
+    /// Скрыть HUD со скоростью/дистанцией (для предпросмотра маршрутов)
+    var hudHidden: Bool = false {
+        didSet { hud.isHidden = hudHidden }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupMap()
         setupHUD()
+        hud.isHidden = hudHidden
     }
 
     private func setupMap() {
@@ -45,6 +52,7 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         hud.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.92)
         hud.layer.cornerRadius = 16
         view.addSubview(hud)
+        self.hud = hud
 
         speedLabel = makeLabel(size: 32, weight: .bold, color: .systemTeal)
         speedLabel.text = "0"
@@ -119,7 +127,17 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         }
     }
 
-    func drawRoute(_ coordinates: [CLLocationCoordinate2D]) {
+    /// Мгновенно переносит камеру к текущему местоположению — используется при нажатии «Начать поездку»
+    func centerOnUser(force: Bool) {
+        guard let location = LocationManager.shared.location else { return }
+        hasCenteredOnUser = true
+        mapView.setRegion(MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        ), animated: true)
+    }
+
+    func drawRoute(_ coordinates: [CLLocationCoordinate2D], fitCamera: Bool = true) {
         guard coordinates.count >= 2 else { return }
         if coordinates.elementsEqual(currentPolyline, by: { $0.latitude == $1.latitude && $0.longitude == $1.longitude }) { return }
         clearRoute()
@@ -127,7 +145,9 @@ final class MapViewController: UIViewController, MKMapViewDelegate {
         let polyline = MKPolyline(coordinates: coordinates, count: coordinates.count)
         mapView.addOverlay(polyline)
         routePolyline = polyline
-        mapView.setVisibleMapRect(polyline.boundingMapRect.insetBy(dx: -5000, dy: -5000), animated: true)
+        if fitCamera {
+            mapView.setVisibleMapRect(polyline.boundingMapRect.insetBy(dx: -5000, dy: -5000), animated: true)
+        }
     }
 
     func clearRoute() {

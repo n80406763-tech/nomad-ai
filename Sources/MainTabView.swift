@@ -1,44 +1,51 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @State private var selectedTab = 0
+    @ObservedObject private var appState = AppState.shared
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $appState.selectedTab) {
+            TripPlannerView()
+                .tabItem {
+                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath.fill")
+                    Text("Поездка")
+                }
+                .tag(0)
+
             NavigationView { MapScreenView() }
                 .tabItem {
                     Image(systemName: "map.fill")
                     Text("Карта")
                 }
-                .tag(0)
+                .tag(1)
 
             NavigationView { RoutesListView() }
                 .tabItem {
                     Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
                     Text("Маршруты")
                 }
-                .tag(1)
+                .tag(2)
 
             NavigationView { PoiSearchView() }
                 .tabItem {
                     Image(systemName: "magnifyingglass")
                     Text("Поиск")
                 }
-                .tag(2)
+                .tag(3)
 
             NavigationView { AssistantView() }
                 .tabItem {
                     Image(systemName: "waveform.and.mic")
                     Text("Ассистент")
                 }
-                .tag(3)
+                .tag(4)
 
             NavigationView { SettingsView() }
                 .tabItem {
                     Image(systemName: "gearshape.fill")
                     Text("Настройки")
                 }
-                .tag(4)
+                .tag(5)
         }
         .navigationViewStyle(.stack)
         .accentColor(.cyan)
