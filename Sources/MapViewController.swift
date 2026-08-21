@@ -20,7 +20,7 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
     private func setupMap() {
         // Стиль карты — бесплатный OpenFreeMap (без API ключа)
         let styleURL = URL(string: "https://tiles.openfreemap.org/styles/liberty")!
-        mapView = MLNMapView(frame: view.bounds, styleURL: styleURL)
+        mapView = MLNMapView(frame: UIScreen.main.bounds, styleURL: styleURL)
         mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         mapView.delegate = self
         mapView.showsUserLocation = true
