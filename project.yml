@@ -1,0 +1,29 @@
+name: Nomad
+options:
+  bundleIdPrefix: com.nomadai
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: 6.4.0
+targets:
+  Nomad:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - Sources
+    resources:
+      - path: Resources
+        type: folder
+    info:
+      path: Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.nomadai.app
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - package: MapLibre
+        product: Mapbox
