@@ -7,11 +7,13 @@ class AssistantVM: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var isRecording = false
     @Published var isThinking = false
+    @Published var statusMessage: String?
 
     private lazy var speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "ru-RU"))
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private let audioEngine = AVAudioEngine()
+    private var tapInstalled = false
     private lazy var synthesizer = AVSpeechSynthesizer()
     private let musicPlayer = MusicPlayerService.shared
 
@@ -39,9 +41,19 @@ class AssistantVM: ObservableObject {
 
     private func startRecording() {
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
-            guard granted else { return }
+            guard granted else {
+                Task { @MainActor in
+                    self.statusMessage = "Микрофон запрещён. Разрешите доступ в настройках iPhone."
+                }
+                return
+            }
             SFSpeechRecognizer.requestAuthorization { status in
-                guard status == .authorized else { return }
+                guard status == .authorized else {
+                    Task { @MainActor in
+                        self.statusMessage = "Распознавание речи запрещено. Разрешите доступ в настройках iPhone."
+                    }
+                    return
+                }
                 DispatchQueue.main.async { self.beginCapture() }
             }
         }
@@ -51,38 +63,53 @@ class AssistantVM: ObservableObject {
         recognitionTask?.cancel()
         recognitionTask = nil
 
-        let audioSession = AVAudioSession.sharedInstance()
-        try? audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers])
-        try? audioSession.setActive(true)
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers])
+            try audioSession.setActive(true)
 
-        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        recognitionRequest?.shouldReportPartialResults = true
+            recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+            recognitionRequest?.shouldReportPartialResults = true
 
-        let inputNode = audioEngine.inputNode
-        guard let request = recognitionRequest else { return }
-        recognitionTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
-            if let result = result, result.isFinal {
-                let text = result.bestTranscription.formattedString
-                DispatchQueue.main.async {
-                    self?.sendText(text)
-                    self?.stopRecording()
+            let inputNode = audioEngine.inputNode
+            guard let request = recognitionRequest else { throw NSError(domain: "Assistant", code: 1) }
+            recognitionTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
+                if let error {
+                    Task { @MainActor in
+                        self?.statusMessage = "Ошибка распознавания: \(error.localizedDescription)"
+                        self?.stopRecording()
+                    }
+                } else if let result, result.isFinal {
+                    let text = result.bestTranscription.formattedString
+                    Task { @MainActor in
+                        self?.sendText(text)
+                        self?.stopRecording()
+                    }
                 }
             }
-        }
 
-        let format = inputNode.outputFormat(forBus: 0)
-        inputNode.removeTap(onBus: 0) // Фикс краша при двойном нажатии
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
+            let format = inputNode.outputFormat(forBus: 0)
+            guard format.sampleRate > 0 else { throw NSError(domain: "Assistant", code: 2) }
+            if tapInstalled { inputNode.removeTap(onBus: 0) }
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                self?.recognitionRequest?.append(buffer)
+            }
+            tapInstalled = true
+            try audioEngine.start()
+            statusMessage = "Слушаю..."
+            isRecording = true
+        } catch {
+            statusMessage = "Не удалось включить микрофон: \(error.localizedDescription)"
+            stopRecording()
         }
-
-        try? audioEngine.start()
-        isRecording = true
     }
 
     private func stopRecording() {
         audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         isRecording = false

@@ -1,5 +1,4 @@
 import SwiftUI
-import MapLibre
 
 struct MapView: UIViewControllerRepresentable {
     @ObservedObject var locationManager = LocationManager.shared

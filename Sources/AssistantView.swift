@@ -47,6 +47,14 @@ struct AssistantView: View {
                     .padding(.bottom, 4)
                 }
 
+                if let status = vm.statusMessage {
+                    Text(status)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                }
+
                 // Нижняя панель ввода
                 VStack(spacing: 10) {
                     Divider().background(Color.gray.opacity(0.3))

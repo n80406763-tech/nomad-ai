@@ -5,7 +5,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            NavigationView { SafeMapView() }
+            NavigationView { MapScreenView() }
                 .tabItem {
                     Image(systemName: "map.fill")
                     Text("Карта")
@@ -40,7 +40,7 @@ struct MainTabView: View {
                 }
                 .tag(4)
         }
-            .navigationViewStyle(.stack)
+        .navigationViewStyle(.stack)
         .accentColor(.cyan)
         .onAppear {
             let appearance = UITabBarAppearance()

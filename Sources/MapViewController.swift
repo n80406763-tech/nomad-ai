@@ -1,16 +1,18 @@
 import UIKit
-import MapLibre
+import MapKit
 import CoreLocation
 
-/// Полный контроллер карты на MapLibre (MLNMapView API)
-class MapViewController: UIViewController, MLNMapViewDelegate {
-
-    private var mapView: MLNMapView!
-    private var routePolyline: MLNPolyline?
-    private var userAnnotation: MLNPointAnnotation?
+final class MapViewController: UIViewController, MKMapViewDelegate {
+    private var mapView = MKMapView()
+    private var routePolyline: MKPolyline?
+    private var userAnnotation: MKPointAnnotation?
     private var currentPolyline: [CLLocationCoordinate2D] = []
+    private var hasCenteredOnUser = false
 
-    // MARK: - Lifecycle
+    private var speedLabel = UILabel()
+    private var distanceLabel = UILabel()
+    private var modeLabel = UILabel()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupMap()
@@ -18,156 +20,136 @@ class MapViewController: UIViewController, MLNMapViewDelegate {
     }
 
     private func setupMap() {
-        // Стиль карты — бесплатный OpenFreeMap (без API ключа)
-        let styleURL = URL(string: "https://tiles.openfreemap.org/styles/liberty")!
-        let safeBounds = UIScreen.main.bounds.isEmpty ? CGRect(x: 0, y: 0, width: 300, height: 300) : UIScreen.main.bounds
-        mapView = MLNMapView(frame: safeBounds, styleURL: styleURL)
-        mapView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        mapView.translatesAutoresizingMaskIntoConstraints = false
         mapView.delegate = self
-        mapView.showsUserLocation = true
-        mapView.userTrackingMode = .followWithHeading
-        mapView.compassView.isHidden = false
-        mapView.logoView.isHidden = true
-
-        // Начальная точка — Новороссийск
-        mapView.setCenter(
-            CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680),
-            zoomLevel: 10,
-            animated: false
-        )
+        mapView.mapType = .standard
+        mapView.showsCompass = true
+        mapView.showsScale = true
+        mapView.showsUserLocation = false
+        mapView.setRegion(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 44.7236, longitude: 37.7680),
+            span: MKCoordinateSpan(latitudeDelta: 0.25, longitudeDelta: 0.25)
+        ), animated: false)
         view.addSubview(mapView)
+        NSLayoutConstraint.activate([
+            mapView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            mapView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            mapView.topAnchor.constraint(equalTo: view.topAnchor),
+            mapView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
     }
-
-    // MARK: - HUD (Спидометр)
-    private var speedLabel: UILabel!
-    private var distanceLabel: UILabel!
-    private var modeLabel: UILabel!
 
     private func setupHUD() {
         let hud = UIView()
-        hud.backgroundColor = UIColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.88)
-        hud.layer.cornerRadius = 16
-        hud.layer.borderWidth = 1
-        hud.layer.borderColor = UIColor.cyan.withAlphaComponent(0.3).cgColor
         hud.translatesAutoresizingMaskIntoConstraints = false
+        hud.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.92)
+        hud.layer.cornerRadius = 16
         view.addSubview(hud)
 
-        speedLabel = makeLabel(size: 36, weight: .bold, color: .cyan)
+        speedLabel = makeLabel(size: 32, weight: .bold, color: .systemTeal)
         speedLabel.text = "0"
-
-        let kmhLabel = makeLabel(size: 11, weight: .medium, color: .gray)
+        let kmhLabel = makeLabel(size: 11, weight: .medium, color: .secondaryLabel)
         kmhLabel.text = "КМ/Ч"
+        distanceLabel = makeLabel(size: 12, weight: .semibold, color: .label)
+        modeLabel = makeLabel(size: 10, weight: .bold, color: .systemOrange)
+        modeLabel.text = "GPS ожидает"
 
-        distanceLabel = makeLabel(size: 12, weight: .semibold, color: .white)
-        distanceLabel.text = ""
-        distanceLabel.textAlignment = .center
-
-        modeLabel = makeLabel(size: 10, weight: .bold, color: .orange)
-        modeLabel.text = "● GPS"
-
-        [speedLabel, kmhLabel, distanceLabel, modeLabel].compactMap { $0 }.forEach { hud.addSubview($0) }
-
+        [speedLabel, kmhLabel, distanceLabel, modeLabel].forEach(hud.addSubview)
         NSLayoutConstraint.activate([
             hud.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             hud.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-            hud.widthAnchor.constraint(equalToConstant: 96),
-            hud.heightAnchor.constraint(equalToConstant: 108),
-
+            hud.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+            hud.heightAnchor.constraint(equalToConstant: 112),
             speedLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            speedLabel.topAnchor.constraint(equalTo: hud.topAnchor, constant: 12),
-
+            speedLabel.topAnchor.constraint(equalTo: hud.topAnchor, constant: 10),
             kmhLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            kmhLabel.topAnchor.constraint(equalTo: speedLabel.bottomAnchor, constant: 2),
-
+            kmhLabel.topAnchor.constraint(equalTo: speedLabel.bottomAnchor),
             distanceLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            distanceLabel.topAnchor.constraint(equalTo: kmhLabel.bottomAnchor, constant: 4),
-            distanceLabel.leadingAnchor.constraint(equalTo: hud.leadingAnchor, constant: 4),
-            distanceLabel.trailingAnchor.constraint(equalTo: hud.trailingAnchor, constant: -4),
-
+            distanceLabel.topAnchor.constraint(equalTo: kmhLabel.bottomAnchor, constant: 5),
             modeLabel.centerXAnchor.constraint(equalTo: hud.centerXAnchor),
-            modeLabel.bottomAnchor.constraint(equalTo: hud.bottomAnchor, constant: -8)
+            modeLabel.bottomAnchor.constraint(equalTo: hud.bottomAnchor, constant: -9)
         ])
-
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.updateHUD()
         }
     }
 
     private func makeLabel(size: CGFloat, weight: UIFont.Weight, color: UIColor) -> UILabel {
-        let l = UILabel()
-        l.font = .systemFont(ofSize: size, weight: weight)
-        l.textColor = color
-        l.translatesAutoresizingMaskIntoConstraints = false
-        return l
+        let label = UILabel()
+        label.font = .systemFont(ofSize: size, weight: weight)
+        label.textColor = color
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
     }
 
     private func updateHUD() {
-        let spd = LocationManager.shared.speed
-        speedLabel.text = "\(Int(spd))"
-
-        if let loc = LocationManager.shared.location {
-            let acc = loc.horizontalAccuracy
-            modeLabel.text = acc < 20 ? "● GPS ✓" : "● GPS ~\(Int(acc))м"
-            modeLabel.textColor = acc < 20 ? .green : .orange
+        let locationManager = LocationManager.shared
+        speedLabel.text = "\(Int(locationManager.speed))"
+        if let location = locationManager.location {
+            let accuracy = Int(location.horizontalAccuracy)
+            modeLabel.text = accuracy < 20 ? "GPS точно" : "GPS ±\(accuracy) м"
+            modeLabel.textColor = accuracy < 20 ? .systemGreen : .systemOrange
+        } else {
+            modeLabel.text = "GPS ожидает"
         }
-
-        if let loc = LocationManager.shared.location,
-           let rem = RouteStore.shared.remainingDistance(from: loc) {
-            distanceLabel.text = rem > 1 ? "\(Int(rem)) км" : "\(Int(rem * 1000)) м"
+        if let location = locationManager.location,
+           let remaining = RouteStore.shared.remainingDistance(from: location) {
+            distanceLabel.text = remaining > 1 ? "\(Int(remaining)) км" : "\(Int(remaining * 1000)) м"
+        } else {
+            distanceLabel.text = "Нет маршрута"
         }
     }
 
-    private var isStyleLoaded = false
-    private var pendingRouteToDraw: [CLLocationCoordinate2D]?
-
-    // MARK: - Public API
     func updateUserLocation(_ location: CLLocation) {
-        // MLNMapView следит сам через showsUserLocation
+        if let annotation = userAnnotation {
+            annotation.coordinate = location.coordinate
+        } else {
+            let annotation = MKPointAnnotation()
+            annotation.coordinate = location.coordinate
+            annotation.title = "Вы здесь"
+            mapView.addAnnotation(annotation)
+            userAnnotation = annotation
+        }
+        if !hasCenteredOnUser {
+            hasCenteredOnUser = true
+            mapView.setRegion(MKCoordinateRegion(
+                center: location.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+            ), animated: true)
+        }
     }
 
     func drawRoute(_ coordinates: [CLLocationCoordinate2D]) {
-        guard !coordinates.isEmpty else { return }
-
-        guard isStyleLoaded else {
-            pendingRouteToDraw = coordinates
-            return
-        }
-
+        guard coordinates.count >= 2 else { return }
         if coordinates.elementsEqual(currentPolyline, by: { $0.latitude == $1.latitude && $0.longitude == $1.longitude }) { return }
         clearRoute()
         currentPolyline = coordinates
-        var coords = coordinates
-        let polyline = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
-        mapView?.addAnnotation(polyline)
+        let polyline = MKPolyline(coordinates: coordinates, count: coordinates.count)
+        mapView.addOverlay(polyline)
         routePolyline = polyline
+        mapView.setVisibleMapRect(polyline.boundingMapRect.insetBy(dx: -5000, dy: -5000), animated: true)
     }
 
     func clearRoute() {
-        if let old = routePolyline {
-            mapView?.removeAnnotation(old)
-            routePolyline = nil
-        }
+        if let routePolyline { mapView.removeOverlay(routePolyline) }
+        routePolyline = nil
         currentPolyline = []
-        pendingRouteToDraw = nil
     }
 
-    // MARK: - MLNMapViewDelegate
-    func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
-        isStyleLoaded = true
-        if let pending = pendingRouteToDraw {
-            pendingRouteToDraw = nil
-            drawRoute(pending)
-        }
-    }
-    func mapView(_ mapView: MLNMapView, strokeColorForShapeAnnotation annotation: MLNShape) -> UIColor {
-        return annotation is MLNPolyline ? .cyan : .blue
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        guard let polyline = overlay as? MKPolyline else { return MKOverlayRenderer(overlay: overlay) }
+        let renderer = MKPolylineRenderer(polyline: polyline)
+        renderer.strokeColor = .systemTeal
+        renderer.lineWidth = 5
+        renderer.alpha = 0.9
+        return renderer
     }
 
-    func mapView(_ mapView: MLNMapView, lineWidthForPolylineAnnotation annotation: MLNPolyline) -> CGFloat {
-        return 5.0
-    }
-
-    func mapView(_ mapView: MLNMapView, alphaForShapeAnnotation annotation: MLNShape) -> CGFloat {
-        return 0.9
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard annotation === userAnnotation else { return nil }
+        let view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: "user")
+        view.markerTintColor = .systemTeal
+        view.glyphImage = UIImage(systemName: "car.fill")
+        return view
     }
 }
