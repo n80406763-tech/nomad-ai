@@ -38,17 +38,22 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="" \
           OTHER_CODE_SIGN_FLAGS="--deep"
 
-    - name: Упаковать в .ipa
+    - name: Упаковать в .ipa (с псевдо-подписью)
       run: |
+        brew install ldid
         APP_PATH=$(find DerivedData -name "*.app" -not -path "*.dSYM*" | head -n 1)
         echo "Найдено: $APP_PATH"
         if [ -z "$APP_PATH" ]; then
           echo "ERROR: .app не найден"
-          find DerivedData -type d | head -30
           exit 1
         fi
+        
+        ldid -S "$APP_PATH"
+        
         mkdir -p Payload
         cp -r "$APP_PATH" Payload/
+        chmod -R 755 Payload/
+        
         zip -r Nomad.ipa Payload
         ls -lh Nomad.ipa
 

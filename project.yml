@@ -14,8 +14,7 @@ targets:
     deploymentTarget: "15.0"
     sources:
       - Sources
-      - path: Resources
-        type: folder
+      - Resources
     info:
       path: Info.plist
     settings:
