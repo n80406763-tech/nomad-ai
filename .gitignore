@@ -3,6 +3,9 @@ Nomad.xcodeproj/
 OfflineBuild/
 Tools/pmtiles/
 Resources/VectorMap/russia.pmtiles
+Resources/OfflineSearch/russia_places.json
+Resources/OfflinePOI/russia_pois.json
+Resources/RoutingGraph/russia_roads.json
 Nomad-AI-*.ipa
 Nomad-AI-*.zip
 final-ipa*

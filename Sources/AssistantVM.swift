@@ -68,8 +68,17 @@ class AssistantVM: ObservableObject {
             try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .duckOthers])
             try audioSession.setActive(true)
 
+            guard let speechRecognizer, speechRecognizer.supportsOnDeviceRecognition else {
+                statusMessage = "Офлайн-распознавание речи недоступно на этом iPhone для русского языка."
+                stopRecording()
+                return
+            }
+
             recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
             recognitionRequest?.shouldReportPartialResults = true
+            // Только локальное распознавание — без него SFSpeechRecognizer по умолчанию
+            // отправляет аудио на серверы Apple, что ломает офлайн-режим приложения.
+            recognitionRequest?.requiresOnDeviceRecognition = true
 
             let inputNode = audioEngine.inputNode
             guard let request = recognitionRequest else { throw NSError(domain: "Assistant", code: 1) }

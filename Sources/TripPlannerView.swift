@@ -17,13 +17,13 @@ final class TripPlannerVM: ObservableObject {
     @Published var fromName = ""
     @Published var toName = ""
 
-    @Published var fromResults: [NominatimResult] = []
-    @Published var toResults: [NominatimResult] = []
+    @Published var fromResults: [OfflinePlaceResult] = []
+    @Published var toResults: [OfflinePlaceResult] = []
     @Published var activeField: Field?
     @Published var isSearching = false
 
     @Published var buildProgress: Double = 0
-    @Published var buildStatusText = "Ищу лучшие дороги…"
+    @Published var buildStatusText = "Строю офлайн-направление…"
     @Published var routeOptions: [RoutingService.RouteResult] = []
     @Published var selectedIndex: Int = 0
     @Published var isOfflineFallback = false
@@ -49,14 +49,14 @@ final class TripPlannerVM: ObservableObject {
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard !Task.isCancelled else { return }
             isSearching = true
-            let res = await NominatimService.shared.search(query: query)
+            let res = await OfflinePlaceSearchService.shared.search(query: query)
             guard !Task.isCancelled else { return }
             if field == .from { fromResults = res } else { toResults = res }
             isSearching = false
         }
     }
 
-    func selectResult(_ result: NominatimResult, field: Field) {
+    func selectResult(_ result: OfflinePlaceResult, field: Field) {
         if field == .from {
             fromCoordinate = result.coordinate
             fromName = result.displayName
@@ -92,19 +92,18 @@ final class TripPlannerVM: ObservableObject {
         guard let from = fromCoordinate, let to = toCoordinate else { return }
         step = .building
         buildProgress = 0
-        buildStatusText = "Ищу лучшие дороги…"
+        buildStatusText = "Прокладываю маршрут по офлайн-графу трасс…"
         routeOptions = []
         isOfflineFallback = false
 
         Task {
-            let results = await RoutingService.shared.buildAlternatives(from: from, to: to, maxCount: 8) { found, total in
+            let results = await RoutingService.shared.buildAlternatives(from: from, to: to) { found, total in
                 Task { @MainActor in
                     self.buildProgress = total > 0 ? min(Double(found) / Double(total), 0.98) : 0
-                    self.buildStatusText = "Найдено вариантов: \(found)…"
                 }
             }
 
-            guard !results.isEmpty else {
+            guard let first = results.first else {
                 let offline = RoutingService.shared.buildOfflineRoute(waypoints: [from, to])
                 self.routeOptions = [offline]
                 self.isOfflineFallback = true
@@ -116,9 +115,12 @@ final class TripPlannerVM: ObservableObject {
             }
 
             self.routeOptions = results
+            self.isOfflineFallback = first.isStraightLineFallback
             self.selectedIndex = 0
             self.buildProgress = 1
-            self.buildStatusText = "Готово: \(results.count) вариант(ов) маршрута"
+            self.buildStatusText = first.isStraightLineFallback
+                ? "Готово: график трасс не покрывает участок, показана прямая линия"
+                : "Готово: маршрут проложен по офлайн-графу трасс России"
             self.estimatedRegions = RouteDownloadService.regionsAlong(polyline: results[0].polyline).count
             self.step = .selecting
         }
@@ -144,7 +146,7 @@ final class TripPlannerVM: ObservableObject {
         RouteStore.shared.save(route)
         RouteStore.shared.activate(route)
         savedRoute = route
-        step = .downloadOffer
+        step = .ready
     }
 
     func startDownload() {
@@ -324,7 +326,7 @@ struct TripPlannerView: View {
             Text("Куда едем?")
                 .font(.title3.bold())
                 .padding(.top, 12)
-            Text("Сперва разрешите доступ к GPS и выберите пункт отправления и назначения.")
+            Text("Поиск населённых пунктов России работает полностью офлайн.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
@@ -378,7 +380,7 @@ struct TripPlannerView: View {
         .padding(.horizontal, 20)
     }
 
-    private func addressBlock(title: String, icon: String, iconColor: Color, text: Binding<String>, results: [NominatimResult], field: TripPlannerVM.Field) -> some View {
+    private func addressBlock(title: String, icon: String, iconColor: Color, text: Binding<String>, results: [OfflinePlaceResult], field: TripPlannerVM.Field) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption.weight(.semibold)).foregroundColor(.secondary)
             HStack {
@@ -421,7 +423,7 @@ struct TripPlannerView: View {
             Text(vm.buildStatusText)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            Text("Проверяем лучшие варианты пути между точками…")
+            Text("Направление рассчитано локально, без подключения к сети.")
                 .font(.footnote)
                 .foregroundColor(.gray)
             Spacer(minLength: 100)
@@ -442,12 +444,12 @@ struct TripPlannerView: View {
             }
 
             if vm.isOfflineFallback {
-                Label("Нет интернета — построена прямая линия между точками", systemImage: "wifi.slash")
+                Label("Прямая линия: офлайн-граф трасс не покрывает этот участок", systemImage: "wifi.slash")
                     .font(.footnote)
                     .foregroundColor(.orange)
                     .padding(.top, 8)
             } else {
-                Text("Найдено \(vm.routeOptions.count) вариант(ов) — пролистайте карточки")
+                Label("Маршрут проложен по офлайн-графу федеральных трасс", systemImage: "checkmark.seal")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     .padding(.top, 8)
@@ -604,9 +606,9 @@ struct TripPlannerView: View {
                 .font(.system(size: 64))
                 .foregroundColor(.green)
                 .padding(.top, 20)
-            Text("Всё скачано успешно!")
+            Text("Поездка сохранена")
                 .font(.title2.bold())
-            Text("Перед поездкой откройте этот навигатор и нажмите «Начать поездку» — приложение сразу перенесёт вас к текущему месту, как в обычном навигаторе.")
+            Text("Карта России и поиск населённых пунктов уже сохранены в приложении. Нажмите «Начать поездку», чтобы открыть карту у текущей позиции.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

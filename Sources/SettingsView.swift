@@ -57,12 +57,22 @@ struct SettingsView: View {
                 HStack {
                     Text("Маршрутизация").foregroundColor(.white)
                     Spacer()
-                    Text("OSRM (бесплатно)").foregroundColor(.gray).font(.caption)
+                    Text("Граф трасс РФ, офлайн").foregroundColor(.gray).font(.caption)
+                }
+                HStack {
+                    Text("Поиск России").foregroundColor(.white)
+                    Spacer()
+                    Text("GeoNames, офлайн").foregroundColor(.gray).font(.caption)
+                }
+                HStack {
+                    Text("АЗС / отели / аптеки").foregroundColor(.white)
+                    Spacer()
+                    Text("OpenStreetMap, офлайн").foregroundColor(.gray).font(.caption)
                 }
                 HStack {
                     Text("GPS").foregroundColor(.white)
                     Spacer()
-                    Text("CoreLocation").foregroundColor(.gray).font(.caption)
+                    Text("CoreLocation + счисление пути").foregroundColor(.gray).font(.caption)
                 }
             }
         }

@@ -1,10 +1,11 @@
 import SwiftUI
+import CoreLocation
 
-/// Добавление точки маршрута: поиск по названию (Nominatim/OSM, офлайн - ввод вручную)
+/// Добавление точки маршрута из локального индекса России.
 struct AddWaypointView: View {
     @Environment(\.dismiss) var dismiss
     @State private var searchText = ""
-    @State private var results: [NominatimResult] = []
+    @State private var results: [OfflinePlaceResult] = []
     @State private var isSearching = false
     var onAdd: (String, CLLocationCoordinate2D) -> Void
 
@@ -73,7 +74,7 @@ struct AddWaypointView: View {
         guard !searchText.isEmpty else { return }
         isSearching = true
         Task { @MainActor in
-            let res = await NominatimService.shared.search(query: searchText)
+            let res = await OfflinePlaceSearchService.shared.search(query: searchText)
             self.results = res
             self.isSearching = false
         }
@@ -86,45 +87,3 @@ struct AddWaypointView: View {
         }
     }
 }
-
-// MARK: - Nominatim (бесплатный геокодер OSM)
-struct NominatimResult: Identifiable, Codable {
-    let id: String
-    let displayName: String
-    let lat: Double
-    let lon: Double
-    var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
-
-    enum CodingKeys: String, CodingKey {
-        case id = "place_id"
-        case displayName = "display_name"
-        case lat, lon
-    }
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = String(try c.decode(Int.self, forKey: .id))
-        displayName = try c.decode(String.self, forKey: .displayName)
-        lat = Double(try c.decode(String.self, forKey: .lat)) ?? 0
-        lon = Double(try c.decode(String.self, forKey: .lon)) ?? 0
-    }
-}
-
-class NominatimService {
-    static let shared = NominatimService()
-    func search(query: String) async -> [NominatimResult] {
-        let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlStr = "https://nominatim.openstreetmap.org/search?q=\(q)&format=json&limit=10&accept-language=ru"
-        guard let url = URL(string: urlStr) else { return [] }
-        var req = URLRequest(url: url)
-          req.timeoutInterval = 8
-        req.setValue("NomadAI/1.0", forHTTPHeaderField: "User-Agent")
-          req.setValue("application/json", forHTTPHeaderField: "Accept")
-          guard let (data, response) = try? await URLSession.shared.data(for: req),
-              let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              let results = try? JSONDecoder().decode([NominatimResult].self, from: data) else { return [] }
-        return results
-    }
-}
-
-import CoreLocation

@@ -87,7 +87,10 @@ final class MapViewController: UIViewController {
         speedLabel.text = "\(Int(locationManager.speed))"
         switch locationManager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
-            if let location = locationManager.location {
+            if locationManager.isDeadReckoning {
+                modeLabel.text = "Без GPS: счисление пути"
+                modeLabel.textColor = .systemRed
+            } else if let location = locationManager.location {
                 let accuracy = Int(location.horizontalAccuracy)
                 modeLabel.text = accuracy < 20 ? "GPS точно" : "GPS ±\(accuracy) м"
                 modeLabel.textColor = accuracy < 20 ? .systemGreen : .systemOrange

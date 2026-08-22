@@ -19,6 +19,11 @@ jobs:
       - name: Установить XcodeGen
         run: brew install xcodegen
 
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Собрать офлайн карту России OSM
         run: |
           set -euo pipefail
@@ -40,6 +45,26 @@ jobs:
             --maxzoom=10 \
             --download-threads=6
           ls -lh "Resources/VectorMap/russia.pmtiles"
+
+      - name: Собрать офлайн поиск России
+        run: |
+          set -euo pipefail
+          TMP_DIR="$(mktemp -d)"
+          curl --fail --location "https://download.geonames.org/export/dump/RU.zip" --output "${TMP_DIR}/RU.zip"
+          node Tools/build-offline-place-index.mjs "${TMP_DIR}/RU.zip" "Resources/OfflineSearch/russia_places.json"
+          ls -lh "Resources/OfflineSearch/russia_places.json"
+
+      - name: Собрать офлайн базу АЗС/отелей/аптек по России
+        run: |
+          set -euo pipefail
+          node Tools/build-offline-poi-index.mjs "Resources/OfflinePOI/russia_pois.json"
+          ls -lh "Resources/OfflinePOI/russia_pois.json"
+
+      - name: Собрать офлайн-граф федеральных трасс России
+        run: |
+          set -euo pipefail
+          node Tools/build-offline-road-graph.mjs "Resources/RoutingGraph/russia_roads.json"
+          ls -lh "Resources/RoutingGraph/russia_roads.json"
 
       - name: Сгенерировать .xcodeproj
         run: xcodegen generate --spec project.yml

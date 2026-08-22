@@ -93,6 +93,20 @@ enum POICategory: String, Codable, CaseIterable {
     case service    = "Шиномонтаж/СТО"
     case atm        = "Банкоматы"
 
+    /// Короткий код категории в бандле офлайн-POI (см. Tools/build-offline-poi-index.mjs).
+    init?(bundledCode: String) {
+        switch bundledCode {
+        case "f": self = .fuel
+        case "h": self = .hotel
+        case "s": self = .supermarket
+        case "c": self = .cafe
+        case "p": self = .pharmacy
+        case "r": self = .service
+        case "a": self = .atm
+        default: return nil
+        }
+    }
+
     var icon: String {
         switch self {
         case .fuel: return "fuelpump.fill"

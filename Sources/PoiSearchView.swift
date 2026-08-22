@@ -77,7 +77,7 @@ struct PoiSearchView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "mappin.slash").font(.system(size: 44)).foregroundColor(.gray.opacity(0.5))
                         Text("Ничего не найдено").foregroundColor(.gray)
-                        Text("Попробуйте увеличить радиус").font(.caption).foregroundColor(.gray.opacity(0.7))
+                        Text("В офлайн-базе рядом нет сохранённых объектов").font(.caption).foregroundColor(.gray.opacity(0.7))
                     }
                     Spacer()
                 } else {
