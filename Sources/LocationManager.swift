@@ -110,6 +110,18 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         if !isTracking {
             recordDiagnostic("Запущено получение координат и направления.")
         }
+        // Мгновенно показываем последнюю известную позицию из кэша iOS, пока ищем свежий фикс —
+        // так карта не пустует первые секунды (именно это делает Яндекс/Google: сразу
+        // рисуют точку из кэша, а затем уточняют её). Свежий фикс из didUpdateLocations
+        // тут же перезапишет это значение.
+        if location == nil, let cached = manager.location, cached.horizontalAccuracy >= 0,
+           -cached.timestamp.timeIntervalSinceNow < 300 {
+            location = cached
+            accuracy = cached.horizontalAccuracy
+            speed = max(0, cached.speed) * 3.6
+            lastRealLocation = cached
+            recordDiagnostic("Показана последняя известная позиция из кэша (±\(Int(cached.horizontalAccuracy)) м), ищу свежий сигнал.")
+        }
         manager.startUpdatingLocation()
         manager.startUpdatingHeading()
         isTracking = true
@@ -280,6 +292,15 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // kCLErrorDomain/0 (.locationUnknown) — штатное "пока не вижу спутники, но продолжаю
+        // пытаться": CoreLocation сам повторяет попытки и обычно быстро восстанавливается
+        // (холодный старт, помещение, слабый сигнал). Ни один настоящий навигатор не
+        // показывает это как ошибку пользователю — только тихо логируем.
+        if let clError = error as? CLError, clError.code == .locationUnknown {
+            recordDiagnostic("Core Location временно не может определить позицию (locationUnknown) — попытки продолжаются.")
+            return
+        }
+
         print("[LocationManager] Ошибка GPS: \(error.localizedDescription)")
         DispatchQueue.main.async {
             self.lastErrorMessage = error.localizedDescription

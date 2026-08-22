@@ -50,7 +50,7 @@ actor OfflineRoadGraph {
             return nil
         }
 
-        guard let path = dijkstra(from: start.index, to: end.index) else { return nil }
+        guard let path = aStar(from: start.index, to: end.index) else { return nil }
 
         var polyline: [CLLocationCoordinate2D] = [from]
         polyline.append(contentsOf: path.nodeIndices.map { nodes[$0] })
@@ -144,22 +144,45 @@ actor OfflineRoadGraph {
         return best
     }
 
-    // MARK: - Dijkstra
+    // MARK: - A*
+    //
+    // Обычный Дейкстра здесь слишком медленный: для маршрута через полстраны
+    // (например, Новороссийск → Москва) он расползается по кругу во все стороны
+    // от старта, пока не наткнётся на цель, и попутно перебирает огромную часть
+    // графа (1.5+ млн узлов). A* с допустимой эвристикой (прямая до цели —
+    // она физически не может быть длиннее реального пути по дорогам) сразу
+    // ведёт поиск в сторону финиша вместо равномерного расползания.
 
     private struct HeapItem { let node: Int; let priority: Double }
 
-    private func dijkstra(from start: Int, to goal: Int) -> (nodeIndices: [Int], meters: Double, seconds: Double)? {
+    private func haversineMeters(_ aLat: Double, _ aLon: Double, _ bLat: Double, _ bLon: Double) -> Double {
+        let earthRadius = 6_371_000.0
+        let toRad = Double.pi / 180
+        let dLat = (bLat - aLat) * toRad
+        let dLon = (bLon - aLon) * toRad
+        let lat1 = aLat * toRad, lat2 = bLat * toRad
+        let a = sin(dLat / 2) * sin(dLat / 2) + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
+        return 2 * earthRadius * asin(min(1, sqrt(a)))
+    }
+
+    private func aStar(from start: Int, to goal: Int) -> (nodeIndices: [Int], meters: Double, seconds: Double)? {
         guard start != goal else { return ([], 0, 0) }
 
-        var distance = [Double](repeating: .infinity, count: nodes.count)
+        let goalLat = nodes[goal].latitude
+        let goalLon = nodes[goal].longitude
+        func heuristic(_ node: Int) -> Double {
+            haversineMeters(nodes[node].latitude, nodes[node].longitude, goalLat, goalLon)
+        }
+
+        var gScore = [Double](repeating: .infinity, count: nodes.count)
         var timeCost = [Double](repeating: .infinity, count: nodes.count)
         var previous = [Int](repeating: -1, count: nodes.count)
         var visited = [Bool](repeating: false, count: nodes.count)
-        distance[start] = 0
+        gScore[start] = 0
         timeCost[start] = 0
 
         var heap = BinaryHeap<HeapItem> { $0.priority < $1.priority }
-        heap.insert(HeapItem(node: start, priority: 0))
+        heap.insert(HeapItem(node: start, priority: heuristic(start)))
 
         while let current = heap.extractMin() {
             let u = current.node
@@ -169,17 +192,17 @@ actor OfflineRoadGraph {
 
             for edge in adjacency[u] {
                 guard !visited[edge.to] else { continue }
-                let newDist = distance[u] + edge.meters
-                if newDist < distance[edge.to] {
-                    distance[edge.to] = newDist
+                let tentativeG = gScore[u] + edge.meters
+                if tentativeG < gScore[edge.to] {
+                    gScore[edge.to] = tentativeG
                     timeCost[edge.to] = timeCost[u] + edge.meters / (edge.speedKmh * 1000 / 3600)
                     previous[edge.to] = u
-                    heap.insert(HeapItem(node: edge.to, priority: newDist))
+                    heap.insert(HeapItem(node: edge.to, priority: tentativeG + heuristic(edge.to)))
                 }
             }
         }
 
-        guard distance[goal].isFinite else { return nil }
+        guard gScore[goal].isFinite else { return nil }
 
         var path: [Int] = []
         var cursor = goal
@@ -189,7 +212,7 @@ actor OfflineRoadGraph {
             if cursor == -1 { return nil }
         }
         path.reverse()
-        return (path, distance[goal], timeCost[goal])
+        return (path, gScore[goal], timeCost[goal])
     }
 }
 
