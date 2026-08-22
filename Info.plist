@@ -33,6 +33,11 @@
 	<string>Nomad AI использует GPS для ведения по офлайн маршруту.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Nomad AI использует GPS для навигации даже при заблокированном экране.</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>navigation</key>
+		<string>Точное местоположение нужно, чтобы вести вас по дороге и показывать движение в реальном времени. В режиме «Приблизительно» позиция обновляется раз в несколько километров.</string>
+	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Микрофон необходим для общения с ИИ-ассистентом.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

@@ -105,11 +105,37 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         UIApplication.shared.open(url)
     }
 
+    /// Навигатору нужна полная точность. Если пользователь дал доступ в режиме
+    /// «Приблизительно» (iOS 14+), позиция приходит с точностью ~1–5 км и почти
+    /// не обновляется при движении — просим временно поднять до точной.
+    /// Требует ключ NSLocationTemporaryUsageDescriptionDictionary → "navigation" в Info.plist.
+    private func ensureFullAccuracy() {
+        guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        guard manager.accuracyAuthorization == .reducedAccuracy else { return }
+        recordDiagnostic("Доступ выдан в режиме «Приблизительно» — запрашиваю точное местоположение для навигации.")
+        manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "navigation") { [weak self] error in
+            guard let self else { return }
+            if let error {
+                self.recordDiagnostic("Не удалось поднять точность GPS: \(error.localizedDescription)")
+            }
+            self.recordDiagnostic("Точность GPS: \(self.accuracyAuthorizationDescription).")
+            if self.manager.accuracyAuthorization == .reducedAccuracy {
+                Task { @MainActor in
+                    DiagnosticsStore.shared.report(
+                        title: "Включите «Точное местоположение»",
+                        details: "Сейчас доступ выдан приблизительно (±несколько км), позиция не двигается. Настройки → Nomad → Геопозиция → включите «Точное местоположение»."
+                    )
+                }
+            }
+        }
+    }
+
     func startTracking() {
         guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
         if !isTracking {
             recordDiagnostic("Запущено получение координат и направления.")
         }
+        ensureFullAccuracy()
         // Мгновенно показываем последнюю известную позицию из кэша iOS, пока ищем свежий фикс —
         // так карта не пустует первые секунды (именно это делает Яндекс/Google: сразу
         // рисуют точку из кэша, а затем уточняют её). Свежий фикс из didUpdateLocations
