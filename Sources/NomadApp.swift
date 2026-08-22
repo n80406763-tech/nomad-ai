@@ -11,7 +11,6 @@ struct NomadApp: App {
                 DiagnosticsBanner()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea()
         }
     }
 }
