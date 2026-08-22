@@ -6,6 +6,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        LocationManager.shared.requestPermission()
+    }
+
     /// Система будит приложение, когда фоновая загрузка (RouteDownloadService) завершена
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
         RouteDownloadService.shared.handleBackgroundEvents(identifier: identifier, completionHandler: completionHandler)
