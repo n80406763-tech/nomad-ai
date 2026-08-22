@@ -82,7 +82,7 @@ class AssistantVM: ObservableObject {
 
             let inputNode = audioEngine.inputNode
             guard let request = recognitionRequest else { throw NSError(domain: "Assistant", code: 1) }
-            recognitionTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
+            recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
                 if let error {
                     Task { @MainActor in
                         self?.statusMessage = "Ошибка распознавания: \(error.localizedDescription)"

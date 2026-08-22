@@ -25,18 +25,20 @@ struct AddWaypointView: View {
                 .padding()
 
                 // Результаты
-                List(results) { result in
-                    Button(action: {
-                        onAdd(result.displayName, result.coordinate)
-                        dismiss()
-                    }) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(result.displayName)
-                                .font(.body)
-                                .lineLimit(2)
-                            Text("\(result.lat, specifier: "%.4f"), \(result.lon, specifier: "%.4f")")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                List {
+                    ForEach(results) { result in
+                        Button(action: {
+                            onAdd(result.displayName, result.coordinate)
+                            dismiss()
+                        }) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.displayName)
+                                    .font(.body)
+                                    .lineLimit(2)
+                                Text("\(result.latitude, specifier: "%.4f"), \(result.longitude, specifier: "%.4f")")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                         }
                     }
                 }
