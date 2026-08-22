@@ -35,6 +35,9 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     private var hasLoggedFirstLocation = false
     private var lastWeakSignalDiagnostic = Date.distantPast
     private var updatesReceived = 0
+    // Последний точный GPS-фикс — чтобы отсекать внезапные грубые скачки (Wi-Fi/вышка).
+    private var lastGoodLocation: CLLocation?
+    private var lastGoodAt = Date.distantPast
 
     private var lastRealLocation: CLLocation?
     private var staleCheckTimer: Timer?
@@ -226,7 +229,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             return
         }
 
-        let displayedLocation: CLLocation
+        var displayedLocation: CLLocation
         if raw.horizontalAccuracy <= 65 {
             locationBuffer.append(raw)
             if locationBuffer.count > bufferSize { locationBuffer.removeFirst() }
@@ -235,20 +238,36 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             let bestAccuracy = locationBuffer.map(\.horizontalAccuracy).min() ?? raw.horizontalAccuracy
             let acceptableThreshold = bestAccuracy * 1.5
             displayedLocation = locationBuffer.last { $0.horizontalAccuracy <= acceptableThreshold } ?? raw
+            lastGoodLocation = displayedLocation
+            lastGoodAt = Date()
+        } else if let good = lastGoodLocation, Date().timeIntervalSince(lastGoodAt) < 15 {
+            // Пришёл грубый фикс (Wi-Fi/вышка, ±сотни метров — 1400 м и т.п.), но только что
+            // был хороший GPS. НЕ прыгаем на грубую точку и не «залипаем» на ней —
+            // держим последнюю хорошую позицию, пока не вернётся нормальный GPS.
+            displayedLocation = good
+            recordWeakSignal("Игнорирую грубый скачок ±\(Int(raw.horizontalAccuracy)) м — держу последнюю точную позицию.")
         } else {
+            // Хорошего GPS давно не было — принимаем грубый фикс как есть.
             displayedLocation = raw
             recordWeakSignal("Получен слабый GPS-сигнал: ±\(Int(raw.horizontalAccuracy)) м. Позиция показана, точность будет улучшаться.")
+        }
+
+        // Привязка к активному маршруту: даже при ±200 м проецируем точку на линию
+        // маршрута, чтобы курсор держался на дороге и «не сбивался с пути».
+        if let snapped = snapToActiveRoute(displayedLocation) {
+            displayedLocation = snapped
         }
 
         // Свежесть считаем по самому свежему сырому фиксу, а не по сглаженной точке
         // (та может указывать на чуть более старую координату из буфера).
         lastRealLocation = raw
 
+        let published = displayedLocation
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.location = displayedLocation
-            self.accuracy = displayedLocation.horizontalAccuracy
-            self.speed = max(0, displayedLocation.speed) * 3.6
+            self.location = published
+            self.accuracy = raw.horizontalAccuracy
+            self.speed = max(0, raw.speed) * 3.6
             self.lastErrorMessage = nil
             self.isSignalStale = false
         }
@@ -264,6 +283,52 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             hasLoggedFirstLocation = true
             recordDiagnostic("Получена первая координата: ±\(Int(raw.horizontalAccuracy)) м.")
         }
+    }
+
+    /// Проецирует позицию на ближайшую точку линии активного маршрута.
+    /// Возвращает точку на маршруте, если она в разумной близости (с запасом под
+    /// текущую точность), иначе nil — значит пользователь реально ушёл с маршрута.
+    private func snapToActiveRoute(_ loc: CLLocation) -> CLLocation? {
+        guard let poly = RouteStore.shared.activeRoute?.polyline, poly.count >= 2 else { return nil }
+
+        // Локальная проекция в метры (равнопромежуточная) относительно текущей точки — быстро и точно на таких масштабах.
+        let latRef = loc.coordinate.latitude
+        let mPerLat = 110_540.0
+        let mPerLon = 111_320.0 * cos(latRef * .pi / 180)
+        func toXY(_ c: CLLocationCoordinate2D) -> (Double, Double) {
+            ((c.longitude - loc.coordinate.longitude) * mPerLon, (c.latitude - latRef) * mPerLat)
+        }
+
+        var bestX = 0.0, bestY = 0.0
+        var bestDistSq = Double.greatestFiniteMagnitude
+        for i in 0..<(poly.count - 1) {
+            let (ax, ay) = toXY(poly[i])
+            let (bx, by) = toXY(poly[i + 1])
+            let dx = bx - ax, dy = by - ay
+            let lenSq = dx * dx + dy * dy
+            let t = lenSq > 0 ? max(0, min(1, -(ax * dx + ay * dy) / lenSq)) : 0
+            let px = ax + t * dx, py = ay + t * dy
+            let distSq = px * px + py * py
+            if distSq < bestDistSq { bestDistSq = distSq; bestX = px; bestY = py }
+        }
+
+        let dist = bestDistSq.squareRoot()
+        // Привязываем, если маршрут в пределах точности + запас (но не дальше 500 м):
+        // так даже при ±200 м курсор держится на дороге. Дальше — считаем, что реально свернул.
+        let snapLimit = min(max(loc.horizontalAccuracy + 60, 120), 500)
+        guard dist <= snapLimit else { return nil }
+
+        let snappedLat = latRef + bestY / mPerLat
+        let snappedLon = loc.coordinate.longitude + (mPerLon != 0 ? bestX / mPerLon : 0)
+        return CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: snappedLat, longitude: snappedLon),
+            altitude: loc.altitude,
+            horizontalAccuracy: loc.horizontalAccuracy,
+            verticalAccuracy: loc.verticalAccuracy,
+            course: loc.course,
+            speed: loc.speed,
+            timestamp: loc.timestamp
+        )
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
