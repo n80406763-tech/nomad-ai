@@ -40,13 +40,17 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     private var staleCheckTimer: Timer?
     /// Насколько давно GPS-фикс не обновлялся, прежде чем считать сигнал потерянным.
     /// Держим с запасом: на месте машина/телефон тоже могут не слать частых обновлений.
-    private static let staleThreshold: TimeInterval = 12
+    private static let staleThreshold: TimeInterval = 20
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
-        manager.activityType = .automotiveNavigation
+        // .otherNavigation, не .automotiveNavigation: автомобильный режим iOS придерживает
+        // обновления на медленной (пешей) скорости, из-за чего поток координат «замирал»
+        // и код ошибочно решал, что сигнал потерян. otherNavigation льёт координаты
+        // непрерывно и пешком, и в машине.
+        manager.activityType = .otherNavigation
         manager.pausesLocationUpdatesAutomatically = false
         // kCLDistanceFilterNone: получать все обновления, даже стоя на месте.
         // При distanceFilter>0 неподвижность выглядит как «нет сигнала» — а именно это
@@ -236,7 +240,9 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             recordWeakSignal("Получен слабый GPS-сигнал: ±\(Int(raw.horizontalAccuracy)) м. Позиция показана, точность будет улучшаться.")
         }
 
-        lastRealLocation = displayedLocation
+        // Свежесть считаем по самому свежему сырому фиксу, а не по сглаженной точке
+        // (та может указывать на чуть более старую координату из буфера).
+        lastRealLocation = raw
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
