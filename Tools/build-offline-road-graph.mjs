@@ -1,8 +1,7 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
-import { spawn } from "node:child_process";
+import { mkdir, rename } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fetchOverpass } from "./overpass-fetch.mjs";
 
 // Строит компактный офлайн-граф федеральных трасс России (магистрали, трассы,
 // дороги первого класса) для маршрутизации по дорогам без сети — вместо
@@ -22,7 +21,6 @@ const [outputPath, endpointArg] = process.argv.slice(2);
 if (!outputPath) {
   throw new Error("Usage: node build-offline-road-graph.mjs OUTPUT.json [overpass-endpoint]");
 }
-const endpoint = endpointArg || "https://overpass-api.de/api/interpreter";
 
 const HIGHWAY_CLASSES = ["motorway", "trunk", "primary", "motorway_link", "trunk_link", "primary_link"];
 
@@ -34,42 +32,6 @@ const SPEED_KMH = {
   trunk_link: 50,
   primary_link: 40,
 };
-
-// curl вместо fetch(): надёжнее для очень больших ответов (потоковая запись
-// на диск, не в память) и не зависит от особенностей HTTP-стека Node/undici
-// за прокси, которые могут обрезать длинные chunked-ответы.
-async function fetchOverpass(query) {
-  const dir = await mkdtemp(join(tmpdir(), "nomad-overpass-"));
-  const destPath = join(dir, "response.json");
-  try {
-    await new Promise((resolve, reject) => {
-      const child = spawn("curl", [
-        "--fail",
-        "--silent",
-        "--show-error",
-        "--location",
-        "--max-time",
-        "1800",
-        "-X",
-        "POST",
-        "-H",
-        "User-Agent: NomadAI-OfflineBuild/1.0",
-        "--data-urlencode",
-        `data=${query}`,
-        "-o",
-        destPath,
-        endpoint,
-      ]);
-      child.stderr.pipe(process.stderr);
-      child.on("error", reject);
-      child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`curl завершился с кодом ${code}`))));
-    });
-    const raw = await readFile(destPath, "utf8");
-    return JSON.parse(raw);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
 
 // Ключ узла — округлённые координаты (~0.1 м), чтобы совпадающие точки
 // пересечения дорог в разных ways схлопывались в один узел графа.
@@ -96,7 +58,7 @@ async function main() {
   const query = `[out:json][timeout:900];\n${areaSetup}(\n  way["highway"~"^(${highwayRegex})$"]${areaFilter};\n);\nout geom;`;
 
   console.log("Запрашиваю Overpass (это может занять несколько минут для всей страны)...");
-  const data = await fetchOverpass(query);
+  const data = await fetchOverpass(query, { endpointArg });
   const ways = (data.elements || []).filter((el) => el.type === "way" && Array.isArray(el.geometry));
   console.log(`Получено ways: ${ways.length}`);
 

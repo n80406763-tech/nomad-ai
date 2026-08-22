@@ -1,8 +1,7 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readFile, rename, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { tmpdir } from "node:os";
-import { spawn } from "node:child_process";
+import { mkdir, rename } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fetchOverpass } from "./overpass-fetch.mjs";
 
 // Строит офлайн-базу точек интереса (АЗС, отели, супермаркеты, кафе, аптеки,
 // шиномонтаж/СТО, банкоматы) для всей России через Overpass API — один раз
@@ -15,7 +14,6 @@ const [outputPath, endpointArg] = process.argv.slice(2);
 if (!outputPath) {
   throw new Error("Usage: node build-offline-poi-index.mjs OUTPUT.json [overpass-endpoint]");
 }
-const endpoint = endpointArg || "https://overpass-api.de/api/interpreter";
 
 // Код категории -> тег OSM. Держим соответствие с OverpassService.category(fromTags:) в Swift.
 const CATEGORIES = [
@@ -27,42 +25,6 @@ const CATEGORIES = [
   { code: "r", tag: 'node["shop"="car_repair"]' },
   { code: "a", tag: 'node["amenity"="atm"]' },
 ];
-
-// curl вместо fetch(): надёжнее для очень больших ответов (потоковая запись
-// на диск, не в память) и не зависит от особенностей HTTP-стека Node/undici
-// за прокси, которые могут обрезать длинные chunked-ответы.
-async function fetchOverpass(query) {
-  const dir = await mkdtemp(join(tmpdir(), "nomad-overpass-"));
-  const destPath = join(dir, "response.json");
-  try {
-    await new Promise((resolve, reject) => {
-      const child = spawn("curl", [
-        "--fail",
-        "--silent",
-        "--show-error",
-        "--location",
-        "--max-time",
-        "1200",
-        "-X",
-        "POST",
-        "-H",
-        "User-Agent: NomadAI-OfflineBuild/1.0",
-        "--data-urlencode",
-        `data=${query}`,
-        "-o",
-        destPath,
-        endpoint,
-      ]);
-      child.stderr.pipe(process.stderr);
-      child.on("error", reject);
-      child.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`curl завершился с кодом ${code}`))));
-    });
-    const raw = await readFile(destPath, "utf8");
-    return JSON.parse(raw);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
 
 const codeForTags = (tags) => {
   if (tags.amenity === "fuel") return "f";
@@ -88,7 +50,7 @@ async function main() {
   ).join("\n")}\n);\nout body;`;
 
   console.log("Запрашиваю Overpass...");
-  const data = await fetchOverpass(query);
+  const data = await fetchOverpass(query, { endpointArg });
   const elements = data.elements || [];
   console.log(`Получено элементов: ${elements.length}`);
 
