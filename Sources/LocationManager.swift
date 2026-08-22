@@ -25,22 +25,22 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     @Published var lastLocationTimestamp: Date?
     @Published var lastErrorMessage: String?
     @Published private(set) var diagnosticEvents: [LocationDiagnosticEvent] = []
-    /// true, пока позиция вычисляется счислением пути (гироскоп/акселерометр), а не живым GPS-фиксом.
-    @Published private(set) var isDeadReckoning = false
+    /// true, когда GPS-фикс давно не обновлялся и на карте показана последняя известная точка
+    /// (позицию НЕ выдумываем — просто держим на месте, как это делают Яндекс/Google).
+    @Published private(set) var isSignalStale = false
 
     // Защита от GPS-прыжков: буфер последних точек
     private var locationBuffer: [CLLocation] = []
     private let bufferSize = 5
     private var hasLoggedFirstLocation = false
     private var lastWeakSignalDiagnostic = Date.distantPast
+    private var updatesReceived = 0
 
-    // Гибридное позиционирование: GPS + счисление пути на время потери сигнала
-    private let deadReckoning = DeadReckoningEstimator()
     private var lastRealLocation: CLLocation?
     private var staleCheckTimer: Timer?
-    /// Сколько GPS-фикс может "молчать", прежде чем включаем счисление пути.
-    private static let staleThreshold: TimeInterval = 4
-    private var lastBridgeLostDiagnostic = Date.distantPast
+    /// Насколько давно GPS-фикс не обновлялся, прежде чем считать сигнал потерянным.
+    /// Держим с запасом: на месте машина/телефон тоже могут не слать частых обновлений.
+    private static let staleThreshold: TimeInterval = 12
 
     override init() {
         super.init()
@@ -48,7 +48,10 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.activityType = .automotiveNavigation
         manager.pausesLocationUpdatesAutomatically = false
-        manager.distanceFilter = 3               // обновляем каждые 3 метра
+        // kCLDistanceFilterNone: получать все обновления, даже стоя на месте.
+        // При distanceFilter>0 неподвижность выглядит как «нет сигнала» — а именно это
+        // раньше ошибочно запускало счисление пути и уводило точку на километры.
+        manager.distanceFilter = kCLDistanceFilterNone
         manager.headingFilter = 5                // обновляем при повороте > 5°
         authorizationStatus = manager.authorizationStatus
         recordDiagnostic("Инициализация: службы геолокации \(CLLocationManager.locationServicesEnabled() ? "включены" : "выключены"), доступ: \(authorizationDescription).")
@@ -148,6 +151,11 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             lastRealLocation = cached
             recordDiagnostic("Показана последняя известная позиция из кэша (±\(Int(cached.horizontalAccuracy)) м), ищу свежий сигнал.")
         }
+        // Разрешаем фоновые обновления (в Info.plist объявлен режим location) —
+        // без этого iOS может «засыпать» поток координат.
+        if manager.authorizationStatus == .authorizedAlways {
+            manager.allowsBackgroundLocationUpdates = true
+        }
         manager.startUpdatingLocation()
         manager.startUpdatingHeading()
         isTracking = true
@@ -160,50 +168,29 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         isTracking = false
         staleCheckTimer?.invalidate()
         staleCheckTimer = nil
-        deadReckoning.stop()
-        isDeadReckoning = false
+        isSignalStale = false
         recordDiagnostic("Получение координат остановлено.")
     }
 
-    /// Раз в секунду проверяет, не "молчит" ли GPS дольше порога — если да,
-    /// подхватывает позицию гибридным счислением пути (гироскоп + акселерометр),
-    /// пока не вернётся настоящий фикс или не истечёт время доверия мосту.
+    /// Раз в секунду проверяет, давно ли обновлялся GPS. Если сигнал потерян —
+    /// только помечаем это флагом для HUD, НЕ трогая саму точку: карта показывает
+    /// последнюю известную позицию на месте (позицию не выдумываем).
     private func startStaleCheckTimer() {
         staleCheckTimer?.invalidate()
         staleCheckTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.evaluateBridging()
+            self?.evaluateSignalFreshness()
         }
     }
 
-    private func evaluateBridging() {
+    private func evaluateSignalFreshness() {
         guard isTracking, let lastReal = lastRealLocation else { return }
         let age = -lastReal.timestamp.timeIntervalSinceNow
-        guard age > Self.staleThreshold else {
-            if deadReckoning.isRunning {
-                deadReckoning.stop()
-                isDeadReckoning = false
-            }
-            return
-        }
-
-        if !deadReckoning.isRunning {
-            deadReckoning.start(from: lastReal)
-            recordDiagnostic("GPS-сигнал пропал \(Int(age)) с назад — включено счисление пути по гироскопу.")
-        }
-
-        if let estimated = deadReckoning.estimate() {
-            location = estimated
-            accuracy = estimated.horizontalAccuracy
-            speed = max(0, estimated.speed) * 3.6
-            isDeadReckoning = true
-        } else {
-            deadReckoning.stop()
-            isDeadReckoning = false
-            if Date().timeIntervalSince(lastBridgeLostDiagnostic) > 15 {
-                lastBridgeLostDiagnostic = Date()
-                recordDiagnostic("Счисление пути превысило время доверия — позиция без GPS больше не показывается.")
-            }
-        }
+        let stale = age > Self.staleThreshold
+        guard stale != isSignalStale else { return }
+        isSignalStale = stale
+        recordDiagnostic(stale
+            ? "GPS-сигнал не обновлялся \(Int(age)) с — показываю последнюю известную позицию."
+            : "GPS-сигнал снова обновляется.")
     }
 
     func clearDiagnostics() {
@@ -249,12 +236,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             recordWeakSignal("Получен слабый GPS-сигнал: ±\(Int(raw.horizontalAccuracy)) м. Позиция показана, точность будет улучшаться.")
         }
 
-        // Настоящий фикс важнее оценки счисления пути — как только сигнал вернулся, мост закрывается.
         lastRealLocation = displayedLocation
-        if deadReckoning.isRunning {
-            deadReckoning.stop()
-            recordDiagnostic("GPS-сигнал восстановлен — счисление пути отключено.")
-        }
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -262,8 +244,15 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             self.accuracy = displayedLocation.horizontalAccuracy
             self.speed = max(0, displayedLocation.speed) * 3.6
             self.lastErrorMessage = nil
-            self.isDeadReckoning = false
+            self.isSignalStale = false
         }
+
+        // Диагностика: первые 8 фиксов логируем всегда — видно, как точность
+        // сходится со временем (вышка ±км → Wi-Fi/спутники ±десятки метров).
+        if updatesReceived < 8 {
+            recordDiagnostic("Фикс #\(updatesReceived + 1): ±\(Int(raw.horizontalAccuracy)) м, скорость \(Int(max(0, raw.speed) * 3.6)) км/ч.")
+        }
+        updatesReceived += 1
 
         if !hasLoggedFirstLocation {
             hasLoggedFirstLocation = true
