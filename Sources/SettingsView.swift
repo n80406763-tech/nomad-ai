@@ -47,7 +47,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Nomad AI").foregroundColor(.white)
                     Spacer()
-                    Text("v1.2.1").foregroundColor(.gray).font(.caption)
+                    Text("v1.2.2").foregroundColor(.gray).font(.caption)
                 }
                 HStack {
                     Text("Карты").foregroundColor(.white)
